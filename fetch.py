@@ -319,9 +319,9 @@ if __name__=="__main__":
         log.info("Creating new table workflow_stats")
         c.execute("CREATE TABLE IF NOT EXISTS workflow_stats (batch_time INTEGER, updated_epoch INTEGER, fetch INTEGER, pair INTEGER)")
 
-    foo=first_pass_match_times()
-    import pdb
-    pdb.set_trace()
+    #foo=first_pass_match_times()
+    #import pdb
+    #pdb.set_trace()
     
         
     heroes_random=list(meta.HERO_DICT.keys())

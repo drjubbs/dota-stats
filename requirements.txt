@@ -1,6 +1,5 @@
 simplejson
 requests
-lzma
 sqlite3
 numpy
 pandas
