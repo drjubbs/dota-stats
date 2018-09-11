@@ -8,6 +8,10 @@ First setup the following environmental variables:
 
 init_tables.py will re-initialize the tables
 
+# TODO
+
+Need to parameterize AWS Region in aws.py
+
 # Setup of OpenShift locally
 
 Use VirtualBox and minishift to create a local developer copy:
