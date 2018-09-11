@@ -6,3 +6,4 @@ Flask
 gunicorn
 BeautifulSoup4
 boto3
+protobuf

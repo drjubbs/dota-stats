@@ -1,6 +1,7 @@
 """Dota Match Scraper
 
 Todo:
+    * MatchID projection to sample matches randomly vs. going in hero order
     * Test code with summoned units which can have items (e.g. Lone Druid,
       Arc Warden)
     * Check for duplicates before writing row key, maintain cached
@@ -25,6 +26,9 @@ import numpy as np
 import logging
 import os
 import sys
+import boto3
+import aws
+from dota_pb import dota_pb2
 
 # Globals
 MATCHES_PER_HERO=10
@@ -102,8 +106,6 @@ def first_pass_match_times():
                            match['start_time'],
                            dt.datetime.fromtimestamp(match['start_time']).isoformat()))
                 last_match=match['match_id']
-    import pdb
-    pdb.set_trace()
     return(ms)
     
 
@@ -195,76 +197,76 @@ def process_match(match_id,hero,skill,counter):
         k="hero-{0}".format(meta.HERO_DICT[p['hero_id']].lower().replace(" ","-"))
         match[k]=True
 
-        # pb2_player=dota_pb2.player()
-        # for t in PLAYER_FIELDS:
-            # setattr(pb2_player,t,p[t])
-            # p.pop(t)
-        # ability_pb_list=[]
-        # if 'ability_upgrades' in p:
-            # for ability in p.pop('ability_upgrades'):
-                # a=dota_pb2.ability()
-                # a.ability=ability['ability']
-                # a.time=ability['time']
-                # a.level=ability['level']
-                # ability_pb_list.append(a)
-            # pb2_player.ability_upgrades.extend(ability_pb_list)
+        pb2_player=dota_pb2.player()
+        for t in PLAYER_FIELDS:
+            setattr(pb2_player,t,p[t])
+            p.pop(t)
+        ability_pb_list=[]
+        if 'ability_upgrades' in p:
+            for ability in p.pop('ability_upgrades'):
+                a=dota_pb2.ability()
+                a.ability=ability['ability']
+                a.time=ability['time']
+                a.level=ability['level']
+                ability_pb_list.append(a)
+            pb2_player.ability_upgrades.extend(ability_pb_list)
 
-        # # Arc warden, Lone Druid...
-        # if "additional_units" in p:
-            # add_units=p.pop('additional_units')
-            # new_units = []
-            # for unit in add_units:
-                # au=dota_pb2.additional_unit()
-                # au.unitname=unit['unitname']
-                # for idx in range(6):
-                    # label="item_{0}".format(idx)
-                    # setattr(au,label,unit[label])
-                # for idx in range(3):
-                    # label="backpack_{0}".format(idx)
-                    # setattr(au,label,unit[label])
-                # new_units.append(au)
-            # pb2_player.additional_units.extend(new_units)                
+        # Arc warden, Lone Druid...
+        if "additional_units" in p:
+            add_units=p.pop('additional_units')
+            new_units = []
+            for unit in add_units:
+                au=dota_pb2.additional_unit()
+                au.unitname=unit['unitname']
+                for idx in range(6):
+                    label="item_{0}".format(idx)
+                    setattr(au,label,unit[label])
+                for idx in range(3):
+                    label="backpack_{0}".format(idx)
+                    setattr(au,label,unit[label])
+                new_units.append(au)
+            pb2_player.additional_units.extend(new_units)                
         
-        # new_players.append(pb2_player)
+        new_players.append(pb2_player)
 
-    # if match['calc_leaver']>1:
-        # log.info("{0:20} {1}".format("Leaver",txt))
-        # return(-43)
+    if match['calc_leaver']>1:
+        log.info("{0:20} {1}".format("Leaver",txt))
+        return(-43)
 
-    # # TODO: Add check for key... otherwise counts get
-    # # screwed up
+    # TODO: Add check for key in remote DB... otherwise counts 
+    # get screwed up
         
-    # # Drop some other stuff we don't need
-    # match.pop("pre_game_duration")                                
-    # match.pop("positive_votes")
-    # match.pop("negative_votes")
-    # match.pop('match_seq_num')
-    # match.pop('tower_status_radiant')
-    # match.pop('tower_status_dire')
-    # match.pop('barracks_status_radiant')
-    # match.pop('barracks_status_dire')
+    # Drop some other stuff we don't need
+    match.pop("pre_game_duration")                                
+    match.pop("positive_votes")
+    match.pop("negative_votes")
+    match.pop('match_seq_num')
+    match.pop('tower_status_radiant')
+    match.pop('tower_status_dire')
+    match.pop('barracks_status_radiant')
+    match.pop('barracks_status_dire')
 
-    # # Add to unit testing, radiant_name, dire_name might be 
-    # # present but missing
-    # if "radiant_name" in match.keys():
-        # match.pop('radiant_name')
-    # if "dire_name" in match.keys():
-        # match.pop('dire_name')
+    # Add to unit testing, radiant_name, dire_name might be 
+    # present but missing
+    if "radiant_name" in match.keys():
+        match.pop('radiant_name')
+    if "dire_name" in match.keys():
+        match.pop('dire_name')
                     
-    # pb2_players = dota_pb2.players()
-    # pb2_players.players.extend(new_players)
-    # btxt=lzma.compress(pb2_players.SerializeToString())
-    # match['players']=boto3.dynamodb.types.Binary(btxt)
-    # try:            
-        # config.dota_table.put_item(Item=match)
+    pb2_players = dota_pb2.players()
+    pb2_players.players.extend(new_players)
+    btxt=lzma.compress(pb2_players.SerializeToString())
+    match['players']=boto3.dynamodb.types.Binary(btxt)
+    try:            
+        aws.dota_table.put_item(Item=match)
 
-    # except Exception as e:                                
-        # print(e)
-        # print(match)
-        # print("**** MATCH_ID: {0}".format(match['match_id']))
-        # import pdb
-        # pdb.set_trace()
-        # raise(e)
+    except Exception as e:                                
+        print(e)
+        print(match)
+        print("**** MATCH_ID: {0}".format(match['match_id']))
+        import pdb
+        pdb.set_trace()
+        raise(e)
 
     log.info("{0:20} {1}".format("SUCCESS",txt))
     return(match['batch_time'])
