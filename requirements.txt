@@ -1,7 +1,8 @@
 simplejson
 requests
-sqlite3
 numpy
 pandas
 Flask
 gunicorn
+BeautifulSoup4
+boto3
