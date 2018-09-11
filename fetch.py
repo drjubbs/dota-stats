@@ -322,8 +322,7 @@ if __name__=="__main__":
     #foo=first_pass_match_times()
     #import pdb
     #pdb.set_trace()
-    
-        
+            
     heroes_random=list(meta.HERO_DICT.keys())
     idx=np.random.choice(range(len(heroes_random)),len(heroes_random),replace=False)
     heroes_random=[heroes_random[t] for t in idx]
