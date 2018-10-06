@@ -79,6 +79,7 @@ PLAYER_FIELDS = [
 # Global dictionary for locally cached matches...
 batch_match = {}
 match_times = {}
+this_aws=aws.AWS(os.environ["DOTA_MATCH_TABLE"])
 
 def first_pass_match_times():
     """Loop through a seldom played hero to get dictionary of 
@@ -258,7 +259,7 @@ def process_match(match_id,hero,skill,counter):
     btxt=lzma.compress(pb2_players.SerializeToString())
     match['players']=boto3.dynamodb.types.Binary(btxt)
     try:            
-        aws.dota_table.put_item(Item=match)
+        this_aws.dota_table.put_item(Item=match)
 
     except Exception as e:                                
         print(e)
@@ -310,7 +311,7 @@ def fetch_matches(hero, skill, conn):
     print("Matches per minute: {0}".format(60*counter/(time.time()-start)))
 
 if __name__=="__main__":
-    conn=sqlite3.connect('workflow_stats.db')
+    conn=sqlite3.connect(os.environ['WORKFLOW_DB'])
     c=conn.cursor()
 
     c.execute("select * from sqlite_master where type = 'table' and name='workflow_stats'")
@@ -320,16 +321,13 @@ if __name__=="__main__":
     else:
         log.info("Creating new table workflow_stats")
         c.execute("CREATE TABLE IF NOT EXISTS workflow_stats (batch_time INTEGER, updated_epoch INTEGER, fetch INTEGER, pair INTEGER)")
-
-    #foo=first_pass_match_times()
-    #import pdb
-    #pdb.set_trace()
             
     heroes_random=list(meta.HERO_DICT.keys())
     idx=np.random.choice(range(len(heroes_random)),len(heroes_random),replace=False)
     heroes_random=[heroes_random[t] for t in idx]
-     
-    for h in [heroes_random[0]]:
-        for s in [1]:
-            log.info("Hero: {0}\t\tSkill: {1}".format(meta.HERO_DICT[h],s))
-            fetch_matches(h,s,conn)
+
+    while True:
+        for h in heroes_random:
+            for s in [1,2,3]:
+                log.info("Hero: {0}\t\tSkill: {1}".format(meta.HERO_DICT[h],s))
+                fetch_matches(h,s,conn)

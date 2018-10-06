@@ -1,14 +1,32 @@
-"""
-Delete current tables and re-create
+"""Initialize DynamoDb tables. 
 """
 import aws
 import os
+import sys
 
-try:
-    aws.dota_table.delete()
+def usage():
+    print("Usage: python init_tables.py <table name> <capacity>\n")
+    print("Note: Ensure capacity stays within free tier or charges will apply.")
+    quit()
+
+if len(sys.argv)<3:
+    usage()    
+else:
+    try:
+        table_name = sys.argv[1]
+        capacity = int(sys.argv[2])
+    except:
+        usage()
+
+# Try and delete table if it exists
+this_aws=aws.AWS(table_name)
+try:    
+    this_aws.dota_table.delete()
+    print("Deleting table: {0}".format(table_name))
 except:
+    print("Did not match table: {0}".format(table_name))
     pass
-
+    
 attribute_dict = {
     'batch_time' : 'N', 
     'match_id' : 'N'
@@ -22,8 +40,8 @@ for k,v in attribute_dict.items():
             'AttributeType' : v 
         })
  
-table = aws.dynamodb.create_table(
-    TableName=aws.os.environ["DOTA_MATCH_TABLE"],
+table = this_aws.dynamodb.create_table(
+    TableName=table_name,
     
     KeySchema = [
         {
@@ -39,12 +57,12 @@ table = aws.dynamodb.create_table(
     ],
     AttributeDefinitions=attribute_list,
     ProvisionedThroughput={
-        'ReadCapacityUnits': 25,
-        'WriteCapacityUnits': 25
+        'ReadCapacityUnits': capacity,
+        'WriteCapacityUnits': capacity
     })
 
 # Wait until the table exists.
-table.meta.client.get_waiter('table_exists').wait(TableName=aws.os.environ["DOTA_MATCH_TABLE"])
+table.meta.client.get_waiter('table_exists').wait(TableName=table_name)
 
 # Print out some data about the table.
 print(table.item_count)

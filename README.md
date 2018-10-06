@@ -5,6 +5,8 @@ First setup the following environmental variables:
 - AWS_SECRET (Use Secret if in Openshift)
 - DOTA_MATCH_TABLE
 - STEAM_KEY
+- WORKFLOW_DB (Set to location for persistent sqlite3 DB)
+- APP_FILE (set to fetch.py or main entry point)
 
 init_tables.py will re-initialize the tables
 
