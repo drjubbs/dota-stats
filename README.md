@@ -1,6 +1,12 @@
-WHERE I LEFT OFF:
-- Did not get MariaDB running on OpenShift, need to modify to use "host"
-  parameter and create table using interactive shell.
+# Todo
+
+- Implement MatchID vs. time model to sample matches randomly vs. going in hero 
+  order, this way popularity is capturely appropriately.
+- Additional testing of code with summoned units which can have items (e.g. 
+  Lone Druid)
+- Check for duplicates before writing key to DynamoDB, this can cause the 
+  local statistics database to be off and be resilient through crashes.
+- Make sure filtering on fetch is accurate and what is desired.
 
 # MariaDB Setup
 
@@ -16,17 +22,23 @@ CREATE DATABASE 'dota';
 CREATE USER 'dota'@'localhost' IDENTIFIED BY <password>;
 GRANT ALL PRIVILEGES ON dota.* TO 'dota'@'localhost';
 FLUSH PRIVILEGES;
-CREATE TABLE IF NOT EXISTS dota (batch_time INT, updated_epoch INT, fetch_num INT, pair INT) ENGINE=INNODB;
+
+## Windows
+mysql -u %DOTA_SQL_USER% -p%DOTA_SQL_PASS% %DOTA_SQL_DB%
+CREATE TABLE IF NOT EXISTS stats (batch_time INT, updated_epoch INT, fetch_num INT, pair INT) ENGINE=INNODB;
 
 ## RSH onto OpenShift:
 mysql -u $MYSQL_USER -p$MYSQL_PASSWORD -h $HOSTNAME $MYSQL_DATABASE
-CREATE TABLE IF NOT EXISTS dota (batch_time INT, updated_epoch INT, fetch_num INT, pair INT) ENGINE=INNODB;
+CREATE TABLE IF NOT EXISTS stats (batch_time INT, updated_epoch INT, fetch_num INT, pair INT) ENGINE=INNODB;
 
 # Run configuration Setup
 
-Setup the following environmental variables (OpenShift):
+Setup the following environmental deploy variables (OpenShift):
 
-- APP_FILE ["fetch.py"]
+- APP_FILE ["/opt/app-root/src/fetch/fetch.py"]
+
+Setup the following build variables (OpenShift):
+
 - UPGRADE_PIP_TO_LATEST ["True"]
 
 Setup the following environmental variables for this workflow:
@@ -35,11 +47,13 @@ Setup the following environmental variables for this workflow:
 - AWS_SECRET (Use Secret if in Openshift)
 - DOTA_MATCH_TABLE
 - STEAM_KEY
-- DOTA_SQL_USER     ["dota"]
-- DOTA_SQL_PASS     [<password>]
 - DOTA_SQL_DB       ["dota"]
-- DOTA_SQL_TABLE    ["stats"]
 - DOTA_SQL_HOST     ["127.0.0.1" for local, service name if in openshift]
+- DOTA_SQL_PASS     [<password>]
+- DOTA_SQL_ROOT_PW  [<password>]
+- DOTA_SQL_TABLE    ["stats"]
+- DOTA_SQL_USER     ["dota"]
+
 
 
 
