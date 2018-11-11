@@ -1,8 +1,19 @@
-"""Initialize DynamoDb tables. 
+"""Initialize Maria DB and DynamoDb tables. 
 """
 import aws
 import os
 import sys
+import mysql.connector as mariadb
+import logging
+
+# Setup logging
+log=logging.getLogger("dota")
+log.setLevel(logging.DEBUG)
+ch=logging.StreamHandler(sys.stdout)
+fmt=logging.Formatter(fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s', 
+                datefmt="%Y-%m-%dT%H:%M:%S %Z")
+ch.setFormatter(fmt)
+log.addHandler(ch)
 
 def usage():
     print("Usage: python init_tables.py <table name> <capacity>\n")

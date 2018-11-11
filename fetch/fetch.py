@@ -1,15 +1,7 @@
 """Dota Match Scraper
 
-Todo:
-    * MatchID projection to sample matches randomly vs. going in hero order
-    * Test code with summoned units which can have items (e.g. Lone Druid,
-      Arc Warden)
-    * Check for duplicates before writing row key, maintain cached
-      duplicate list... move batch_match from global to something
-      else??
-    * Make sure filtering is accurate
-    * Go backwards a fix # of matches from most recent otherwise
-      you get all turbo
+Fetches, parses, and puts matches in DynamoDB, keeping statistics in
+local SQL database for web visualization.
 """
 import time
 import requests
@@ -21,7 +13,6 @@ import pandas as pd
 import util
 import time
 import lzma
-import sqlite3
 import numpy as np
 import logging
 import os
@@ -29,6 +20,7 @@ import sys
 import boto3
 import aws
 from dota_pb import dota_pb2
+import mysql.connector as mariadb
 
 # Globals
 MATCHES_PER_HERO=10
@@ -294,15 +286,19 @@ def fetch_matches(hero, skill, conn):
                     # Log stats on successful return
                     if batch_time>0:
                         now_epoch=int((dt.datetime.utcnow()-dt.datetime(1970,1,1)).total_seconds())
-                        cursor.execute('''select * from workflow_stats WHERE batch_time=?''',(batch_time,))
+                        cursor.execute('select * from '+os.environ["DOTA_SQL_TABLE"]+' WHERE batch_time=%s', (batch_time,))
                         row = cursor.fetchone()
-                        if row is None:
-                            cursor.execute('''INSERT INTO workflow_stats(batch_time, updated_epoch, fetch, pair) VALUES (?,?,?,?)''',(batch_time,now_epoch,1,0))
-                            conn.commit()
-                        else:
-                            sql='''UPDATE workflow_stats SET updated_epoch=?, fetch=? WHERE batch_time=?'''
-                            cursor.execute(sql, (now_epoch, row[2]+1, batch_time))
-                            conn.commit()
+                        try:
+                            if row is None:
+                                cursor.execute('INSERT INTO '+os.environ["DOTA_SQL_TABLE"]+' (batch_time, updated_epoch, fetch_num, pair) VALUES (%s,%s,%s,%s)',(batch_time,now_epoch,1,0))
+                                conn.commit()
+                            else:
+                                sql='UPDATE '+os.environ["DOTA_SQL_TABLE"]+' SET updated_epoch=%s, fetch_num=%s WHERE batch_time=%s'
+                                cursor.execute(sql, (now_epoch, row[2]+1, batch_time))
+                                conn.commit()
+                        except:
+                            import pdb
+                            pdb.set_trace()
  
                     counter=counter+1
             start_at_match_id=min(ms)-1
@@ -311,17 +307,12 @@ def fetch_matches(hero, skill, conn):
     print("Matches per minute: {0}".format(60*counter/(time.time()-start)))
 
 if __name__=="__main__":
-    conn=sqlite3.connect(os.environ['WORKFLOW_DB'])
-    c=conn.cursor()
 
-    c.execute("select * from sqlite_master where type = 'table' and name='workflow_stats'")
-    row=c.fetchone()
-    if row is not None:
-        log.info("Found existing workflow stats table")
-    else:
-        log.info("Creating new table workflow_stats")
-        c.execute("CREATE TABLE IF NOT EXISTS workflow_stats (batch_time INTEGER, updated_epoch INTEGER, fetch INTEGER, pair INTEGER)")
-            
+    conn = mariadb.connect(host=os.environ["DOTA_SQL_HOST"], 
+                           user=os.environ["DOTA_SQL_USER"],
+                           password=os.environ["DOTA_SQL_PASS"],
+                           database=os.environ["DOTA_SQL_DB"])
+    c = conn.cursor()            
     heroes_random=list(meta.HERO_DICT.keys())
     idx=np.random.choice(range(len(heroes_random)),len(heroes_random),replace=False)
     heroes_random=[heroes_random[t] for t in idx]
