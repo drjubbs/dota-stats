@@ -33,9 +33,13 @@ CREATE TABLE IF NOT EXISTS stats (batch_time INT, updated_epoch INT, fetch_num I
 
 # Run configuration Setup
 
-Setup the following environmental deploy variables (OpenShift):
+Setup the following environmental deploy variables for fetch (OpenShift):
 
 - APP_FILE ["/opt/app-root/src/fetch/fetch.py"]
+
+Setup the following environmental deploy variables for flask (OpenShift):
+
+- APP_MODULE ["monitor.server:app"]
 
 Setup the following build variables (OpenShift):
 

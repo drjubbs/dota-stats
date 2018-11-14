@@ -43,10 +43,23 @@ def count_data():
 
 
 @app.route('/')
-def hello_world():
+def stats():
 
-    df=count_data()
-
+    df_count=count_data()
+ 
+    # Merge with recent times and zero out entries which don't match...
+    # this is to give view of last 5 days...
+    recent_times=[]
+    now_dt=utc.localize(dt.datetime.utcnow()).astimezone(nytz)
+    
+    for i in range(24*5):
+        recent_times.append((now_dt-dt.timedelta(hours=i)).\
+            strftime("%Y-%m-%d %H:00:00"))
+    
+ 
+    df=pd.DataFrame({'time' : recent_times})
+    df=df.merge(df_count, on='time', how='left').fillna(0)
+    
     plt_dict={
         'type' : 'bar',
         'x' : list(df['time'].tolist()),
