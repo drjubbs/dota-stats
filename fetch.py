@@ -17,10 +17,8 @@ import numpy as np
 import logging
 import os
 import sys
-import boto3
-import aws
+import sqlite3
 from dota_pb import dota_pb2
-import mysql.connector as mariadb
 
 # Globals
 MATCHES_PER_HERO=10
@@ -71,7 +69,7 @@ PLAYER_FIELDS = [
 # Global dictionary for locally cached matches...
 batch_match = {}
 match_times = {}
-this_aws=aws.AWS(os.environ["DOTA_MATCH_TABLE"])
+##this_aws=aws.AWS(os.environ["DOTA_MATCH_TABLE"])
 
 def first_pass_match_times():
     """Loop through a seldom played hero to get dictionary of 
@@ -103,6 +101,8 @@ def first_pass_match_times():
     
 
 def process_match(match_id,hero,skill,counter):
+
+    # Event loop to deal with timeouts
     SLEEP_SCHEDULE=[0.05,0.1,1.0,10,30,60,300,500,1000,2000,6000]
     fetched=False
     count=0
@@ -144,15 +144,11 @@ def process_match(match_id,hero,skill,counter):
     dire_heroes=[]
 
     # Bad game mode
-    try:
-        if not(meta.MODE_ENUM[match['game_mode']] in
-            ["All Pick", "Captains Mode", "Random Draft", "Single Draft", "All Random", "Least Played"]):
-            log.info("{0:20} {1}".format("Bad game mode",txt))
-            return(-1)
-    except:
-        print("BAD MODE: {0} - {1}".format(match['game_mode'], match['match_id']))
-        raise(exceptions.ValueError("Bad mode: {0}".format(match['game_mode'])))
-                
+    if not(meta.MODE_ENUM[match['game_mode']] in
+        ["All Pick", "Captains Mode", "Random Draft", "Single Draft", "All Random", "Least Played"]):
+        log.info("{0:20} {1}".format("Bad game mode",txt))
+        return(-1)
+               
     # Bail if zero length matches
     if (match['duration']<1200):
         log.info("{0:20} {1}".format("Short duration",txt))
@@ -178,7 +174,8 @@ def process_match(match_id,hero,skill,counter):
             if p['leaver_status']>match['calc_leaver']:
                 match['calc_leaver']=p['leaver_status']                    
         except:
-            pass
+            import pdb
+            pdb.set_trace()
         
         player_slot=p['player_slot']
 
@@ -249,17 +246,17 @@ def process_match(match_id,hero,skill,counter):
     pb2_players = dota_pb2.players()
     pb2_players.players.extend(new_players)
     btxt=lzma.compress(pb2_players.SerializeToString())
-    match['players']=boto3.dynamodb.types.Binary(btxt)
-    try:            
-        this_aws.dota_table.put_item(Item=match)
+    #match['players']=boto3.dynamodb.types.Binary(btxt)
+    #try:            
+    #    this_aws.dota_table.put_item(Item=match)
 
-    except Exception as e:                                
-        print(e)
-        print(match)
-        print("**** MATCH_ID: {0}".format(match['match_id']))
-        import pdb
-        pdb.set_trace()
-        raise(e)
+    #except Exception as e:                                
+    #    print(e)
+    #    print(match)
+    #    print("**** MATCH_ID: {0}".format(match['match_id']))
+    #    import pdb
+    #    pdb.set_trace()
+    #    raise(e)
 
     log.info("{0:20} {1}".format("SUCCESS",txt))
     return(match['batch_time'])
@@ -308,11 +305,9 @@ def fetch_matches(hero, skill, conn):
 
 if __name__=="__main__":
 
-    conn = mariadb.connect(host=os.environ["DOTA_SQL_HOST"], 
-                           user=os.environ["DOTA_SQL_USER"],
-                           password=os.environ["DOTA_SQL_PASS"],
-                           database=os.environ["DOTA_SQL_DB"])
+    conn=sqlite3.connect("matches.db")
     c = conn.cursor()            
+
     heroes_random=list(meta.HERO_DICT.keys())
     idx=np.random.choice(range(len(heroes_random)),len(heroes_random),replace=False)
     heroes_random=[heroes_random[t] for t in idx]
