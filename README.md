@@ -1,4 +1,8 @@
-# Todo
+# TODO
+- Re-enable protobuf writes (currently disabled), try storing in SQLite database
+  instead of cloud solution
+- Unless there is an HTML fetch error, track all match IDs... no reason to
+  revisit a match ID which was already rejected. 
 - Implement MatchID vs. time model to sample matches randomly vs. going in hero 
   order, this way popularity is capturely appropriately.
 - Additional testing of code with summoned units which can have items (e.g. 
@@ -14,4 +18,10 @@
 * vim: `/usr/share/vim/vim81/defaults.vim` -- remove `set mouse=a`
 * Non-obvious packages to get things working:
   - `sudo apt-get install libatlas-base-dev`
-* In  `.bashrc`, `export STEAM_KEY=1234567890....`
+* In  `.bashrc`, set the following:
+
+```bash
+export STEAM_KEY=1234567890....
+export DOTA_SQL_STATS_FILE=/matches.db
+export DOTA_SQL_STATS_TABLE=dota_stats
+```

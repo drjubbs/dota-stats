@@ -24,12 +24,6 @@ MODE_ENUM = {
     24 : 'Mutation'
 }
 
-#-----------------------
-# ITEMS
-#-----------------------
-#with open("items.json","r") as f:
-#    ITEMS=json.loads("".join(f.readlines()))
-    
 LOBBY_ENUM = {
 	'INVALID' : -1,
 	'CASUAL_MATCH' : 0,
@@ -39,7 +33,8 @@ LOBBY_ENUM = {
 	'LEGACY_TEAM_MATCH' : 5,
 	'LEGACY_SOLO_QUEUE_MATCH' : 6,
 	'COMPETITIVE_MATCH' : 7,
-	'CASUAL_1V1_MATCH' : 8
+	'CASUAL_1V1_MATCH' : 8,
+        'MOROKAI_CUSTOM_GAME' : 12,
 }
 
 LEAVER = [
@@ -76,7 +71,7 @@ LEAVER = [
     {
         "id": "6",
         "name": "NEVER_CONNECTED_TOO_LONG",
-        "description": "ntoo long to connect, no abandon"
+        "description": "too long to connect, no abandon"
     }
 ]
 
@@ -196,7 +191,8 @@ HERO_DICT={
  114: 'Monkey King',
  119: 'Dark Willow',
  120: 'Pangolier',
- 121: 'Grimstroke' }
+ 121: 'Grimstroke',
+ 129: 'Mars' }
 
 # Updated meta data if run directly....
 if __name__ == "__main__":

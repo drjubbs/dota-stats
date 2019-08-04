@@ -14,15 +14,6 @@ FILTER_NORMAL=filter_leaver&(filter_mode)&(filter_lobby)&(filter_duration)
 # All matches
 FILTER_ALL=Attr("game_mode").gt(-999)
 
-# Logging
-log=logging.getLogger("dota")
-log.setLevel(logging.DEBUG)
-ch=logging.StreamHandler(sys.stdout)
-fmt=logging.Formatter(fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s', 
-                datefmt="%Y-%m-%dT%H:%M:%S %Z")
-ch.setFormatter(fmt)
-log.addHandler(ch)
-
 # Binary hero encoding (local DB mode)
 def encode_heroes(hero_list):
     low_mask=0
