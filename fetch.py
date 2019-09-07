@@ -118,7 +118,7 @@ def parse_match(match):
     # Lobby types
     if not(match['lobby_type'] in meta.LOBBY_ENUM.values()):
         raise(ValueError("Unknown lobby type: {}".format(match['match_id'])))
-    if not(match['lobby_type'] in [0,2,7]):
+    if not(match['lobby_type'] in [0,2,7,9]):
         raise(ParseException("Lobby Type"))
             
     match['calc_leaver']=0
@@ -191,6 +191,16 @@ def parse_match(match):
 
     return(summary)
 
+def fetch_match(match_id,skill):
+    """Skill is optional, this simply sets an object in the json
+    for reference"""
+
+    match=fetch_url("https://api.steampowered.com/IDOTA2Match_570/GetMatchDetails/V001/?key={0}&match_id={1}".format(STEAM_KEY,match_id))
+    match['api_skill']=skill
+
+
+    return(match)
+
 
 def process_matches(match_ids, hero, skill, conn):
     """Loop over all match_ids, parsing JSON output and writing 
@@ -204,11 +214,8 @@ def process_matches(match_ids, hero, skill, conn):
         if match_id in MATCH_IDS.keys():
             log.info("{0:20.20} {1}". format("Exists", txt))
         else:
-            match=fetch_url("https://api.steampowered.com/IDOTA2Match_570/GetMatchDetails/V001/?key={0}&match_id={1}".format(STEAM_KEY,match_id))
+            match=fetch_match(match_id, skill)
        
-            # Skill level as defined by API
-            match['api_skill']=skill
-            
             # Set dictionary for start time so we don't fetch multiple times
             MATCH_IDS[match['match_id']]=match['start_time']
 
@@ -282,6 +289,6 @@ if __name__=="__main__":
 
     while True:
         for h in heroes_random:
-            for s in [1,2,3]:
+            for s in [3]:
                 log.info("Hero: {0}\t\tSkill: {1}".format(meta.HERO_DICT[h],s))
                 fetch_matches(h,s,conn)
