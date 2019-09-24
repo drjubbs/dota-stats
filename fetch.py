@@ -89,6 +89,10 @@ def fetch_url(url):
             r=json.loads(rv.text)['result']
             # Check to see if we have an error
             if 'error' in r:
+
+                import pdb
+                pdb.set_trace()
+
                 raise(ValueError("API returned error: {}".format(url)))
             else:
                 return(json.loads(rv.text)['result'])
@@ -104,7 +108,9 @@ def parse_match(match):
     dt1=dt.datetime.utcfromtimestamp(match['start_time'])
             
     radiant_heroes=[]
+    radiant_gpm=[]
     dire_heroes=[]
+    dire_gpm=[]
     
     # Bad game mode
     if not(meta.MODE_ENUM[match['game_mode']] in
@@ -137,9 +143,11 @@ def parse_match(match):
         player_slot=p['player_slot']
 
         if player_slot<=4:                
-            radiant_heroes.append(p['hero_id'])                
+            radiant_heroes.append(p['hero_id'])
+            radiant_gpm.append(p['gold_per_min'])
         else:
             dire_heroes.append(p['hero_id'])
+            dire_gpm.append(p['gold_per_min'])
 
         pb2_player=dota_pb2.player()
         for t in PLAYER_FIELDS:
@@ -179,6 +187,10 @@ def parse_match(match):
     pb2_players = dota_pb2.players()
     pb2_players.players.extend(new_players)
     btxt=lzma.compress(pb2_players.SerializeToString())
+
+    # Sort heroes by farm priority
+    radiant_heroes=[x for _,x in sorted(zip(radiant_gpm,radiant_heroes),reverse=True)]
+    dire_heroes=[x for _,x in sorted(zip(dire_gpm,dire_heroes),reverse=True)]
 
     summary={
                 'match_id' : match['match_id'],
@@ -287,8 +299,8 @@ if __name__=="__main__":
     idx=np.random.choice(range(len(heroes_random)),len(heroes_random),replace=False)
     heroes_random=[heroes_random[t] for t in idx]
 
-    while True:
+    for loop_num in range(10):
         for h in heroes_random:
-            for s in [3]:
+            for s in [1]:
                 log.info("Hero: {0}\t\tSkill: {1}".format(meta.HERO_DICT[h],s))
                 fetch_matches(h,s,conn)
