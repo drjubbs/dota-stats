@@ -23,6 +23,7 @@ from dota_pb import dota_pb2
 #----------------------------------------------
 # Globals
 #----------------------------------------------
+SKILL=3
 PAGES_PER_HERO=10
 MIN_MATCH_LEN=1200
 STEAM_KEY=os.environ['STEAM_KEY']
@@ -181,6 +182,9 @@ def parse_match(match):
         
         new_players.append(pb2_player)
 
+    if 0 in [t.hero_id for t in new_players]:
+        raise(ParseException("hero_id=0 in players"))
+
     if match['calc_leaver']>1:
         raise(ParseException("Leaver"))
 
@@ -276,7 +280,7 @@ def fetch_matches(hero, skill, conn):
 
 if __name__=="__main__":
 
-    SQL_STATS_FILE=os.environ['DOTA_SQL_STATS_FILE']
+    SQL_STATS_FILE="matches_{0}_{1}.db".format(SKILL, dt.datetime.now().strftime("%Y%m%d%H"))
     SQL_STATS_TABLE=os.environ['DOTA_SQL_STATS_TABLE']
 
     conn=sqlite3.connect(SQL_STATS_FILE)
@@ -299,8 +303,7 @@ if __name__=="__main__":
     idx=np.random.choice(range(len(heroes_random)),len(heroes_random),replace=False)
     heroes_random=[heroes_random[t] for t in idx]
 
-    for loop_num in range(10):
+    for loop_num in range(5):
         for h in heroes_random:
-            for s in [1]:
-                log.info("Hero: {0}\t\tSkill: {1}".format(meta.HERO_DICT[h],s))
-                fetch_matches(h,s,conn)
+            log.info("Hero: {0}\t\tSkill: {1}".format(meta.HERO_DICT[h],SKILL))
+            fetch_matches(h,SKILL,conn)
