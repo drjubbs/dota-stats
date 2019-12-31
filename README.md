@@ -17,7 +17,8 @@ Also install required packages:
 
 
 # TODO
-
+- Check log level in `fetch.py` so that INFO can be turned off and
+  logs contain more helpful error information.
 - Finish re-ranking of position logic in `process.py` to assign hero
   positions based on based likelihood. Used to calculate win probably 
   by farm position summary.

@@ -2,6 +2,10 @@
 
 Fetches, parses, and puts matches in DynamoDB, keeping statistics in
 local SQL database for web visualization.
+
+TODO:
+    Lone Druid items not accounted for properly (bear/hero)
+
 """
 import time
 import requests
@@ -23,11 +27,11 @@ from dota_pb import dota_pb2
 #----------------------------------------------
 # Globals
 #----------------------------------------------
-SKILL=3
 PAGES_PER_HERO=10
 MIN_MATCH_LEN=1200
 STEAM_KEY=os.environ['STEAM_KEY']
 MATCH_IDS = {}
+MISSING_HEROES = {}
 
 PLAYER_FIELDS = [
     "account_id",
@@ -76,28 +80,36 @@ log.addHandler(ch)
 class ParseException(Exception):
     pass
 
+class APIException(Exception):
+    pass
+
+
 def fetch_url(url):
     """Simple wait loop around fetching to deal with things like network 
     outages, etc..."""
 
-    SLEEP_SCHEDULE=[0.05,0.1,1.0,10,30,60,300,500,1000,2000,6000]
+    SLEEP_SCHEDULE=[0.05,0.1,1.0,10,30,60,300,500,1000,2000,6000,12000,24000]
     fetched=False
     for sleep in SLEEP_SCHEDULE:
         time.sleep(sleep)
 
-        rv=requests.get(url)
-        if rv.status_code==200:
-            r=json.loads(rv.text)['result']
-            # Check to see if we have an error
-            if 'error' in r:
+        try:
+            rv=requests.get(url)
+            if rv.status_code==200:
+                r=json.loads(rv.text)['result']
+                # Check to see if we have an error
+                if 'error' in r:
 
-                import pdb
-                pdb.set_trace()
+                    if r['error']=='Match ID not found':
+                        raise(APIException("Match ID not found"))
+                    else:
+                        import pdb
+                        pdb.set_trace()
+                else:
+                    return(json.loads(rv.text)['result'])
+        except:
+            pass
 
-                raise(ValueError("API returned error: {}".format(url)))
-            else:
-                return(json.loads(rv.text)['result'])
-    
     raise(ValueError("Could not fetch: {}".format(url)))
 
 
@@ -136,6 +148,9 @@ def parse_match(match):
         raise(ParseException("Min Players"))
             
     new_players=[]
+    items_dict = {}
+    gold_spent = {}
+
     for p in players:
 
         if p['leaver_status']>match['calc_leaver']:
@@ -143,12 +158,35 @@ def parse_match(match):
        
         player_slot=p['player_slot']
 
+        # Check to see if we're missing a hero ID
+        if p['hero_id'] not in meta.HERO_DICT.keys():
+            MISSING_HEROES[p['hero_id']]=match['match_id']
+
+        # Check for intentional feeding
+        if p['deaths']>30 and p['kills']<5:
+            raise(ParseException("Feeding"))
+
         if player_slot<=4:                
             radiant_heroes.append(p['hero_id'])
             radiant_gpm.append(p['gold_per_min'])
         else:
             dire_heroes.append(p['hero_id'])
             dire_gpm.append(p['gold_per_min'])
+
+        # Net worth
+        gold_spent[p['hero_id']] = p['gold_spent']
+
+        # Get active items on hero
+        items = []
+        item_fields = [t for t in p.keys() if t[0:4]=='item']
+        for field in item_fields:
+            items.append(p[field])
+
+        bp_fields = [t for t in p.keys() if t[0:8]=='backpack']
+        for field in bp_fields:
+            items.append(p[field])
+
+        items_dict[p['hero_id']]=items
 
         pb2_player=dota_pb2.player()
         for t in PLAYER_FIELDS:
@@ -202,7 +240,9 @@ def parse_match(match):
                 'radiant_heroes' : radiant_heroes,
                 'dire_heroes' : dire_heroes,
                 'radiant_win' : match['radiant_win'], 
-                'api_skill' : match['api_skill']
+                'api_skill' : match['api_skill'],
+                'items' : json.dumps(items_dict),
+                'gold_spent' : json.dumps(gold_spent),
             }
 
     return(summary)
@@ -230,7 +270,12 @@ def process_matches(match_ids, hero, skill, conn):
         if match_id in MATCH_IDS.keys():
             log.info("{0:20.20} {1}". format("Exists", txt))
         else:
-            match=fetch_match(match_id, skill)
+
+            try:
+                match=fetch_match(match_id, skill)
+            except APIException as e:
+                log.error("{0:20.20} {1}". format("API Error", str(e)))
+
        
             # Set dictionary for start time so we don't fetch multiple times
             MATCH_IDS[match['match_id']]=match['start_time']
@@ -238,13 +283,14 @@ def process_matches(match_ids, hero, skill, conn):
             try:
                 summary=parse_match(match)
                 cursor.execute('INSERT INTO '+SQL_STATS_TABLE+\
-                        ' (match_id, start_time, radiant_heroes, dire_heroes, radiant_win, api_skill) VALUES (?,?,?,?,?,?)',(
+                        ' (match_id, start_time, radiant_heroes, dire_heroes, radiant_win, api_skill, items, gold_spent) VALUES (?,?,?,?,?,?,?,?)',(
                                 summary['match_id'],
                                 summary['start_time'],
                                 str(summary['radiant_heroes']),
                                 str(summary['dire_heroes']),
                                 summary['radiant_win'],
-                                summary['api_skill']))
+                                summary['api_skill'],
+                                summary['items'], summary['gold_spent']))
                 log.info("{0:20.20} {1}". format("Success", txt))
                
             except ParseException as e:
@@ -278,9 +324,39 @@ def fetch_matches(hero, skill, conn):
 
     print("Matches per minute: {0}".format(60*counter/(time.time()-start)))
 
+def usage():
+    txt="""
+python fetch.py <[hero name]|"all">
+    """
+    print(txt)
+    sys.exit(1)
+
 if __name__=="__main__":
 
-    SQL_STATS_FILE="matches_{0}_{1}.db".format(SKILL, dt.datetime.now().strftime("%Y%m%d%H"))
+    # Check command line arguments and setup hero list and
+    # skill level
+    if len(sys.argv)<3:
+        usage()
+
+    t=sys.argv[1].lower()
+    if t=="all":
+        heroes=list(meta.HERO_DICT.keys())
+    else:
+        valid_heroes=[v for k,v in meta.HERO_DICT.items()]
+        if not t in valid_heroes:
+            usage()
+        else:
+            heroes=[k for k,v in meta.HERO_DICT.items() if v==t]
+
+    t=sys.argv[2].lower()
+    if t in ["1", "2", "3"]:
+        skill = int(t)
+    else:
+        usage()
+
+
+    # Setup database
+    SQL_STATS_FILE="matches_{0}_{1}.db".format(skill, dt.datetime.now().strftime("%Y%m%d%H"))
     SQL_STATS_TABLE=os.environ['DOTA_SQL_STATS_TABLE']
 
     conn=sqlite3.connect(SQL_STATS_FILE)
@@ -296,14 +372,25 @@ if __name__=="__main__":
         c.execute("CREATE TABLE "+SQL_STATS_TABLE+
             "(match_id INTEGER PRIMARY KEY, start_time INTEGER, "\
             "radiant_heroes STRING, dire_heroes STRING, radiant_win"\
-            " INTEGER, api_skill INTEGER);")
+            " INTEGER, api_skill INTEGER, items STRING, gold_spent STRING);")
         conn.commit()
-    
-    heroes_random=list(meta.HERO_DICT.keys())
-    idx=np.random.choice(range(len(heroes_random)),len(heroes_random),replace=False)
-    heroes_random=[heroes_random[t] for t in idx]
+   
+    for i in range(48):
+        counter=1
+        for h in [8]:
+            log.info("Hero: {0} {1}/{2} Skill: {3}".format(
+                        meta.HERO_DICT[h],
+                        counter,
+                        len(heroes),
+                        skill))
+            fetch_matches(h,skill,conn)
+            counter=counter+1
 
-    for loop_num in range(5):
-        for h in heroes_random:
-            log.info("Hero: {0}\t\tSkill: {1}".format(meta.HERO_DICT[h],SKILL))
-            fetch_matches(h,SKILL,conn)
+
+        print("Sleeping for 1 hour")
+        time.sleep(3600)
+
+    print("-------------------------------------------------------------")
+    print("Missing Heroes: ")
+    print(MISSING_HEROES)
+    print("-------------------------------------------------------------")
