@@ -330,7 +330,7 @@ def fetch_matches(hero, skill, conn):
 
 def usage():
     txt="""
-python fetch.py <[hero name]|"all">
+python fetch.py <[hero name]|"all"> <skill level> <sleep timer (seconds)>
     """
     print(txt)
     sys.exit(1)
@@ -339,18 +339,18 @@ if __name__=="__main__":
 
     # Check command line arguments and setup hero list and
     # skill level
-    if len(sys.argv)<3:
+    if len(sys.argv)<4:
         usage()
 
-    t=sys.argv[1].lower()
-    if t=="all":
+    hero_name=sys.argv[1].lower()
+    if hero_name=="all":
         heroes=list(meta.HERO_DICT.keys())
     else:
         valid_heroes=[v for k,v in meta.HERO_DICT.items()]
         if not t in valid_heroes:
             usage()
         else:
-            heroes=[k for k,v in meta.HERO_DICT.items() if v==t]
+            heroes=[k for k,v in meta.HERO_DICT.items() if v==hero_name]
 
     t=sys.argv[2].lower()
     if t in ["1", "2", "3"]:
@@ -358,9 +358,17 @@ if __name__=="__main__":
     else:
         usage()
 
+    sleep_timer=sys.argv[3]
+    if sleep_timer == 0:
+        sleep_timer = 3600
+
+    # Setup filename
+    SQL_STATS_FILE="matches_{0}_{1}_{2}.db".format(
+            skill,
+            hero_name,
+            dt.datetime.now().strftime("%Y%m%d%H"))
 
     # Setup database
-    SQL_STATS_FILE="matches_{0}_{1}.db".format(skill, dt.datetime.now().strftime("%Y%m%d%H"))
     SQL_STATS_TABLE=os.environ['DOTA_SQL_STATS_TABLE']
 
     conn=sqlite3.connect(SQL_STATS_FILE)
@@ -381,7 +389,7 @@ if __name__=="__main__":
    
     for i in range(48):
         counter=1
-        for h in [8]:
+        for h in heroes:
             log.info("Hero: {0} {1}/{2} Skill: {3}".format(
                         meta.HERO_DICT[h],
                         counter,
