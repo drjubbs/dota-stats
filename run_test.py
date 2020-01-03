@@ -43,6 +43,15 @@ class TestFramework(unittest.TestCase):
         jugg=item_dict[str(meta.REVERSE_HERO_DICT['juggernaut'])]
         self.assertTrue(meta.ITEMS['phase_boots']['id'] in jugg)
 
+    def test_no_items(self):
+        with open("./testing/no_items.json") as f:
+            match=json.loads(f.read())
+
+        with self.assertRaises(Exception) as context:
+            fetch.parse_match(match)
+
+        self.assertTrue(context.exception.__str__()=='No items')
+
 
 if __name__ == '__main__':
     unittest.main()

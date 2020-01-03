@@ -182,6 +182,10 @@ def parse_match(match):
         for field in item_fields:
             items.append(p[field])
 
+        # No/destroyed items
+        if set(items) == set([0]):
+            raise(ParseException("No items"))
+
         bp_fields = [t for t in p.keys() if t[0:8]=='backpack']
         for field in bp_fields:
             items.append(p[field])
