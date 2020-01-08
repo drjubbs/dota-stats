@@ -125,38 +125,7 @@ for k,v in HERO_DICT.items():
 with open('items.json') as f:
     txt=f.read()
     ITEMS=json.loads(txt)
-
-# Updated meta data if run directly....
-if __name__ == "__main__":
-    #---------------------------------------------
-    # Refresh item dictionary from dotabuff
-    #---------------------------------------------
-    updated_items={}
-    for k,v in ITEMS.items():    
-        time.sleep(random.randint(1000,2000)/1000)
-        url="https://www.dotabuff.com/items/{0}".format(v['name'])
-        rv=requests.get(url, headers={'User-agent' : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/64.0.3282.168 Safari/537.36)'})
-        if rv.status_code==200:
-            parsed=bs4.BeautifulSoup(rv.text,"lxml")
-            div=parsed.find("div", attrs={'class' : 'tooltip-header'})
-            fullname=div.find("div", attrs={'class' : 'name'})
-            v['pretty']=fullname.text
-            
-            div=parsed.find("div", attrs={'class' : 'price'})
-            price=div.find("span", attrs={'class' : 'value'})
-            if price.text.upper()=="NO COST":
-                value=0
-            else:
-                value=int(price.text.replace(",",""))
-            print("{0:45s} {1:5d}".format(v['name'],value))
-            v['value']=value            
-            updated_items[int(k)]=v
-        else:
-            print(v['name'])
-            v['pretty']="Unknown"
-            v['value']=-1            
-            updated_items[int(k)]=v
-        
-    with open("items_{0}.json".format(uuid.uuid4().hex),"w") as f:
-        f.writelines(json.dumps(updated_items,indent=4))
-        
+    
+REVERSE_ITEM={}
+for k,v in ITEMS.items():
+    REVERSE_ITEM[v['id']]=k

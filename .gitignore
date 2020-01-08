@@ -131,3 +131,5 @@ dmypy.json
 # This project
 *.db
 *.db-journal
+log
+temp*.csv

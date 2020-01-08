@@ -386,8 +386,10 @@ if __name__=="__main__":
             "radiant_heroes STRING, dire_heroes STRING, radiant_win"\
             " INTEGER, api_skill INTEGER, items STRING, gold_spent STRING);")
         conn.commit()
+    conn.close()
    
-    for i in range(48):
+    for i in range(5):
+        conn=sqlite3.connect(SQL_STATS_FILE)
         counter=1
         for h in heroes:
             log.info("Hero: {0} {1}/{2} Skill: {3}".format(
@@ -397,7 +399,8 @@ if __name__=="__main__":
                         skill))
             fetch_matches(h,skill,conn)
             counter=counter+1
-
+        conn.commit()
+        conn.close()
 
         print("Sleeping for 1 hour")
         time.sleep(3600)
