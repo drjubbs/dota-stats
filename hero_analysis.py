@@ -38,11 +38,13 @@ def unpack_match(match_id, hero, radiant_heroes, dire_heroes, radiant_win):
                     match_id, rh, 
                     1, dh, int(radiant_win),
                     ))
+                
             if (dh==hero):
                 counter_list.append((
                     match_id, dh,
                     0, rh, int(not(radiant_win)),
                     ))
+    
     # Allies
     if hero in radiant_heroes:
         for rh in radiant_heroes:
@@ -59,5 +61,6 @@ def unpack_match(match_id, hero, radiant_heroes, dire_heroes, radiant_win):
                         match_id, hero, 
                         0, dh, int(not(radiant_win)),
                         ))
+
     return(counter_list, ally_list)
 
