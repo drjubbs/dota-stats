@@ -10,39 +10,13 @@ which have synergy with other heroes.
 
 import sqlite3
 import meta
+import sys
 import os
 import ujson as json
 import pandas as pd
 import numpy as np
 import hero_analysis
 from sklearn.linear_model import LogisticRegression
-
-HERO='juggernaut'
-DB_FILES = ['matches_1_all_2020010710.db']
-
-rows=[]
-for db_file in DB_FILES:
-    conn = sqlite3.connect(db_file)
-    c = conn.cursor()
-    c.execute("SELECT match_id, radiant_heroes, dire_heroes, items, "\
-            "gold_spent, radiant_win FROM {}".format(
-        os.environ['DOTA_SQL_STATS_TABLE']))
-    rows.extend(c.fetchall())
-    conn.close()
-    
-print("{0} matches found in database".format(len(rows)))
-
-
-enemy_list = []
-ally_list = []
-for match_id, radiant_heroes, dire_heroes, items, \
-                        gold_spent, radiant_win in rows:
-    a, b = hero_analysis.unpack_match(match_id, HERO, radiant_heroes, 
-                                                dire_heroes, radiant_win)
-    if not(a==[]):
-        enemy_list.extend(a)
-    if not(b==[]):
-        ally_list.extend(b)
 
 
 def regress_matchups(hero_list, enemy_flag):
@@ -87,28 +61,74 @@ def regress_matchups(hero_list, enemy_flag):
     'coeff' : lr.coef_[0]})    
     return(results)
 
-
-df_enemy = regress_matchups(enemy_list, True)
-df_ally = regress_matchups(ally_list, True)
-
-
-df_enemy=df_enemy.rename(columns={'variable' : 'enemy' , 
-                                  'coeff' : 'enemy_coeff'}).\
-                                  sort_values(by="enemy_coeff") 
-df_ally=df_ally.rename(columns={'variable' : 'ally' , 
-                                'coeff' : 'ally_coeff'}).\
-                                sort_values(by="ally_coeff", ascending=False)
-df_enemy.reset_index(inplace=True)
-df_ally.reset_index(inplace=True)
+def usage():
+    print("python hero_matchups.py <hero name> <db file1, db file2, ...>")
+    sys.exit(0)
 
 
-counter=0
-for idx, row in df_ally.join(df_enemy, lsuffix="l_", rsuffix="r_").iterrows():
-    print("{0:20} {1:6.3f}   {2:20} {3:6.3f}".format(
-            row.ally,
-            row.ally_coeff,
-            row.enemy,
-            row.enemy_coeff))
-    counter=counter+1
-    if counter==30:
-        break
+if __name__ == "__main__":
+
+    # Check command line arguments
+    if len(sys.argv)<3:
+        usage()
+
+    hero = sys.argv[1].lower()
+    if hero not in meta.REVERSE_HERO_DICT.keys():
+        usage()
+   
+    files = sys.argv[2].split(",")
+    for f in files:
+        if not os.path.exists(f):
+            usage()
+
+    # Read from database files
+    rows=[]
+    for db_file in files:
+        conn = sqlite3.connect(db_file)
+        c = conn.cursor()
+        c.execute("SELECT match_id, radiant_heroes, dire_heroes, items, "\
+                "gold_spent, radiant_win FROM {}".format(
+            os.environ['DOTA_SQL_STATS_TABLE']))
+        rows.extend(c.fetchall())
+        conn.close()
+        
+    print("{0} matches found in database".format(len(rows)))
+
+
+    enemy_list = []
+    ally_list = []
+    for match_id, radiant_heroes, dire_heroes, items, \
+                            gold_spent, radiant_win in rows:
+        a, b = hero_analysis.unpack_match(match_id, hero, radiant_heroes, 
+                                                    dire_heroes, radiant_win)
+        if not(a==[]):
+            enemy_list.extend(a)
+        if not(b==[]):
+            ally_list.extend(b)
+
+
+
+    df_enemy = regress_matchups(enemy_list, True)
+    df_ally = regress_matchups(ally_list, True)
+
+
+    df_enemy=df_enemy.rename(columns={'variable' : 'enemy' , 
+                                      'coeff' : 'enemy_coeff'}).\
+                                      sort_values(by="enemy_coeff") 
+    df_ally=df_ally.rename(columns={'variable' : 'ally' , 
+                                    'coeff' : 'ally_coeff'}).\
+                                    sort_values(by="ally_coeff", ascending=False)
+    df_enemy.reset_index(inplace=True)
+    df_ally.reset_index(inplace=True)
+
+
+    counter=0
+    for idx, row in df_ally.join(df_enemy, lsuffix="l_", rsuffix="r_").iterrows():
+        print("{0:20} {1:6.3f}   {2:20} {3:6.3f}".format(
+                row.ally,
+                row.ally_coeff,
+                row.enemy,
+                row.enemy_coeff))
+        counter=counter+1
+        if counter==30:
+            break
