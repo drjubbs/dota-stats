@@ -133,3 +133,4 @@ dmypy.json
 *.db-journal
 log
 temp*.csv
+*.err

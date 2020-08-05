@@ -36,6 +36,7 @@ LOBBY_ENUM = {
 	'CASUAL_1V1_MATCH' : 8,
 	'BATTLE_CUP' : 9,
         'MOROKAI_CUSTOM_GAME' : 12,
+        'TI10_GAUNTLET_?' : 13
 }
 
 LEAVER = [

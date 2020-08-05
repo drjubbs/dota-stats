@@ -23,10 +23,13 @@ import os
 import sys
 import sqlite3
 from dota_pb import dota_pb2
+from multiprocessing import Pool
+from functools import partial
 
 #----------------------------------------------
 # Globals
 #----------------------------------------------
+NUM_THREADS=4       # Set to 1 for single threaded execution
 PAGES_PER_HERO=10
 MIN_MATCH_LEN=1200
 STEAM_KEY=os.environ['STEAM_KEY']
@@ -88,7 +91,7 @@ def fetch_url(url):
     """Simple wait loop around fetching to deal with things like network 
     outages, etc..."""
 
-    SLEEP_SCHEDULE=[0.05,0.1,1.0,10,30,60,300,500,1000,2000,6000,12000,24000]
+    SLEEP_SCHEDULE=[0.0,0.1,1.0,10,30,60,300,500,1000,2000,6000,12000,24000]
     fetched=False
     for sleep in SLEEP_SCHEDULE:
         time.sleep(sleep)
@@ -137,11 +140,14 @@ def parse_match(match):
     # Lobby types
     if not(match['lobby_type'] in meta.LOBBY_ENUM.values()):
         raise(ValueError("Unknown lobby type: {}".format(match['match_id'])))
-    if not(match['lobby_type'] in [0,2,7,9]):
+    if not(match['lobby_type'] in [0,2,7,9,13]):
         raise(ParseException("Lobby Type"))
             
     match['calc_leaver']=0
-    players=copy.deepcopy(match["players"])
+
+    # Is deepcopy necessary? Not think so but leave this here if a bug turns up
+    #players=copy.deepcopy(match["players"])
+    players=match["players"]
     
     # Bail if Missing players
     if {} in players:
@@ -232,7 +238,7 @@ def parse_match(match):
 
     pb2_players = dota_pb2.players()
     pb2_players.players.extend(new_players)
-    btxt=lzma.compress(pb2_players.SerializeToString())
+    #btxt=lzma.compress(pb2_players.SerializeToString())
 
     # Sort heroes by farm priority
     radiant_heroes=[x for _,x in sorted(zip(radiant_gpm,radiant_heroes),reverse=True)]
@@ -261,53 +267,72 @@ def fetch_match(match_id,skill):
 
     return(match)
 
+def process_match(hero, skill, match_id):
+    """Process a single match, used by the multi-threading engine."""
+
+    txt="match ID {0} hero {1:3} skill {2}".format(match_id, hero, skill)
+    try:
+        match=fetch_match(match_id, skill)
+    except APIException as e:
+        log.error("{0:20.20} {1}". format("API Error", str(e)))
+
+    try:
+        summary=parse_match(match)
+        log.info("{0:20.20} {1}". format("Success", txt))
+        return(summary)
+    except ParseException as e:
+        log.info("{0:20.20} {1}". format(str(e), txt))
+        return(None)
+    except:
+        log.error(json.dumps(match,indent=5))
+        log.error("{0}". format(str(e)))
+        raise(ValueError("Failed on match_id: {}".format(match_id)))
 
 def process_matches(match_ids, hero, skill, conn):
     """Loop over all match_ids, parsing JSON output and writing 
     to database.
     """
     cursor=conn.cursor()
+    log.info("{0} matches for processing".format(len(match_ids)))
+    match_ids=[m for m in match_ids if m not in MATCH_IDS.keys()]
+    log.info("{0} matches after removing duplicates.".format(
+                                                    len(match_ids)))
 
-    for match_id in match_ids:
-        txt="match ID {0} hero {1:3} skill {2}".format(match_id, hero, skill)
+    if NUM_THREADS==1:
+        matches=[process_match(match_id,hero,skill) for \
+                    match_id in match_ids]
+    else:
+        f=partial(process_match,hero,skill)
+        with Pool(NUM_THREADS) as p:
+            matches=p.map(f, match_ids)
 
-        if match_id in MATCH_IDS.keys():
-            log.info("{0:20.20} {1}". format("Exists", txt))
-        else:
+    matches=[m for m in matches if m is not None]
+    log.info("{0} valid matches to write to database".format(len(matches)))
 
-            try:
-                match=fetch_match(match_id, skill)
-            except APIException as e:
-                log.error("{0:20.20} {1}". format("API Error", str(e)))
+    for summary in matches:
 
-       
-            # Set dictionary for start time so we don't fetch multiple times
-            MATCH_IDS[match['match_id']]=match['start_time']
+        # Set dictionary for start time so we don't fetch multiple times
+        MATCH_IDS[summary['match_id']]=summary['start_time']
 
-            try:
-                summary=parse_match(match)
-                cursor.execute('INSERT INTO '+SQL_STATS_TABLE+\
-                        ' (match_id, start_time, radiant_heroes, dire_heroes, radiant_win, api_skill, items, gold_spent) VALUES (?,?,?,?,?,?,?,?)',(
-                                summary['match_id'],
-                                summary['start_time'],
-                                str(summary['radiant_heroes']),
-                                str(summary['dire_heroes']),
-                                summary['radiant_win'],
-                                summary['api_skill'],
-                                summary['items'], summary['gold_spent']))
-                log.info("{0:20.20} {1}". format("Success", txt))
-               
-            except ParseException as e:
-                log.info("{0:20.20} {1}". format(str(e), txt))
-            except:
-                log.error(json.dumps(match,indent=5))
-                raise(ValueError("Failed on match_id: {}".format(match_id)))
+        cursor.execute('INSERT INTO '+SQL_STATS_TABLE+\
+                ' (match_id, start_time, radiant_heroes, dire_heroes, radiant_win, api_skill, items, gold_spent) VALUES (?,?,?,?,?,?,?,?)',(
+                        summary['match_id'],
+                        summary['start_time'],
+                        str(summary['radiant_heroes']),
+                        str(summary['dire_heroes']),
+                        summary['radiant_win'],
+                        summary['api_skill'],
+                        summary['items'], summary['gold_spent']))
     conn.commit()
-    return(match_id)
+    
+    # Return the lowest match id for the next page
+    return(min(match_ids))
 
 
 def fetch_matches(hero, skill, conn):
-
+    """Gets list of matches by page. This is just the index, not the 
+    individual match results.
+    """
     counter=1
     start=time.time()
     start_at_match_id=9999999999
@@ -388,22 +413,19 @@ if __name__=="__main__":
         conn.commit()
     conn.close()
    
-    for i in range(5):
-        conn=sqlite3.connect(SQL_STATS_FILE)
-        counter=1
-        for h in heroes:
-            log.info("Hero: {0} {1}/{2} Skill: {3}".format(
-                        meta.HERO_DICT[h],
-                        counter,
-                        len(heroes),
-                        skill))
-            fetch_matches(h,skill,conn)
-            counter=counter+1
-        conn.commit()
-        conn.close()
+    conn=sqlite3.connect(SQL_STATS_FILE)
+    counter=1
+    for h in heroes:
+        log.info("Hero: {0} {1}/{2} Skill: {3}".format(
+                    meta.HERO_DICT[h],
+                    counter,
+                    len(heroes),
+                    skill))
+        fetch_matches(h,skill,conn)
+        counter=counter+1
 
-        print("Sleeping for 1 hour")
-        time.sleep(3600)
+    conn.commit()
+    conn.close()
 
     print("-------------------------------------------------------------")
     print("Missing Heroes: ")

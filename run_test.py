@@ -6,16 +6,20 @@ import fetch
 import meta
 import hero_analysis
 
-"""
-Fetching a match for debugging:
-
-import fetch
-import json
-m=fetch.fetch_match("5173397139",2)
-with open("backpack.json", "w") as f:
-    f.write(json.dumps(m))
-
-"""
+#class TestDumpBug(unittest.TestCase):
+#    """Use this class to dump a problematic match JSON for
+#    additional testing. JSON is stored into the testing
+#    directory.
+#    
+#        python run_test.py TestDumpBug
+#    
+#    """
+#    def test_fetch_debug(self):
+#        match="5553775652"
+#        m=fetch.fetch_match(match,0)
+#        with open("./testing/{}.json".format(match), "w") as f:
+#            f.write(json.dumps(m))
+#        pm=fetch.parse_match(m)
 
 class TestFramework(unittest.TestCase):
     def test_encoding(self):
