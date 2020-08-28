@@ -29,7 +29,7 @@ from functools import partial
 #----------------------------------------------
 # Globals
 #----------------------------------------------
-NUM_THREADS=4       # Set to 1 for single threaded execution
+NUM_THREADS=16     # Set to 1 for single threaded execution
 PAGES_PER_HERO=10
 MIN_MATCH_LEN=1200
 STEAM_KEY=os.environ['STEAM_KEY']
@@ -91,7 +91,7 @@ def fetch_url(url):
     """Simple wait loop around fetching to deal with things like network 
     outages, etc..."""
 
-    SLEEP_SCHEDULE=[0.0,0.1,1.0,10,30,60,300,500,1000,2000,6000,12000,24000]
+    SLEEP_SCHEDULE=[0.0,0.1,1.0,10,30,60,300,500,1000,2000]
     fetched=False
     for sleep in SLEEP_SCHEDULE:
         time.sleep(sleep)
@@ -106,8 +106,7 @@ def fetch_url(url):
                     if r['error']=='Match ID not found':
                         raise(APIException("Match ID not found"))
                     else:
-                        import pdb
-                        pdb.set_trace()
+                        raise(APIException(r['error']))
                 else:
                     return(json.loads(rv.text)['result'])
         except:
@@ -326,7 +325,10 @@ def process_matches(match_ids, hero, skill, conn):
     conn.commit()
     
     # Return the lowest match id for the next page
-    return(min(match_ids))
+    try:
+        return(min(match_ids))
+    except:
+        return(0)
 
 
 def fetch_matches(hero, skill, conn):
@@ -394,7 +396,7 @@ if __name__=="__main__":
             dt.datetime.now().strftime("%Y%m%d%H"))
 
     # Setup database
-    SQL_STATS_TABLE=os.environ['DOTA_SQL_STATS_TABLE']
+    SQL_STATS_TABLE="dota_stats"
 
     conn=sqlite3.connect(SQL_STATS_FILE)
     c = conn.cursor() 

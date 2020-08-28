@@ -134,3 +134,4 @@ dmypy.json
 log
 temp*.csv
 *.err
+env2/

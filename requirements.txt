@@ -1,8 +1,5 @@
 beautifulsoup4
-Flask
-gunicorn
 ipython
-Jinja2
 numpy
 pandas
 plotly
@@ -14,5 +11,6 @@ snakeviz
 urllib3
 jupyter
 ujson
-scipy==1.3.3
+scipy==1.4.1
 scikit-learn
+mariadb

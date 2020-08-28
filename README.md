@@ -10,22 +10,46 @@ Key files:
 
 # Setup
 
-Acquire an API key from Valve and set the following environmental variables:
-
-	export STEAM_KEY=1234567890....
-	export DOTA_SQL_STATS_TABLE=dota_stats
-
-Also install required packages:
+Install required python packages:
 
 	pip install -i requirements.txt
 
-Create a basic shell script which activates the virtual environment and runs with required options. This script can be run from a user based crontab.
+Setup MariaDB configuration, substituting in a strong password for `password1`. Note that using `MyISAM` as the engine on a Raspberry PI had a profound impact on performance.
+
+```
+DROP DATABASE if exists dota;
+CREATE DATABASE dota;
+USE dota;
+CREATE TABLE dota_matches (match_id BIGINT PRIMARY KEY, \
+                         start_time BIGINT, \
+                         radiant_heroes CHAR(32), \
+                         dire_heroes CHAR(32), \
+                         radiant_win BOOLEAN, \
+                         api_skill INTEGER, \
+                         items VARCHAR(1024), \
+                         gold_spent VARCHAR(1024))
+                         ENGINE = 'MyISAM';
+                         
+
+
+CREATE USER 'dota'@localhost IDENTIFIED BY 'password1';
+GRANT ALL PRIVILEGES ON dota.* TO 'dota'@localhost;
+```
+
+Add the following environmental variables to your shell:
+
+	export STEAM_KEY=1234567890....
+	export DOTA_USERNAME=dota
+	export DOTA_PASSWORD=password1
+
+Create a basic shell script which activates the virtual environment and runs with required options. This script can be run from a user based crontab. It should export the same environmental variables as the shell to ensure the scripts work properly.
 
 ```
 #!/bin/bash
-export STEAM_KEY=0D3D25631076EE1DD6723DFC7E4123D8
-export DOTA_SQL_STATS_FILE=matches.db
-export DOTA_SQL_STATS_TABLE=dota_stats
+export STEAM_KEY=1234567890....
+export DOTA_USERNAME=dota
+export DOTA_PASSWORD=password1
+
 
 cd dota-stats
 source ./env/bin/activate
@@ -39,7 +63,12 @@ python fetch.py all 3 60 1> log/matches_3_$DATESTR.log 2> log/matches_3_$DATESTR
 
 
 # TODO
-- Check that the new logic excluding previously fetched matches is working...
+- Increase number of threads from 8 to 16 to see if we can fetch more data?
+- Use new MariaDB database to compare pre- and post-patch winrrates.
+- Migrate `fetch.py` over to using MariaDB
+  - Needs to load initial dictionary of known matches on started (at least within a reasonable data range)
+- Check that the new logic excluding previously fetched matches is working... search for "matches for processing" in logs toward the end...
+- In `fetch/process_match` see if exceptions are causing a hard stop (they should??)
 - Profile/optimize `fetch.py` so that all high skill level games can be captured. Histogram of match times should not have any missing data.
 - Update virtual environment and `requirementstxt`.
 - Optimize number of matches being processed so that an entire day's worth at a single skill level can be captured. This is likely a combination of code optimization, reduced sleep timers, and only selecting matches within a range based on an initial scan.
