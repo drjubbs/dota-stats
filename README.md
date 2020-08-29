@@ -64,6 +64,7 @@ python fetch.py all 3 60 1> log/matches_3_$DATESTR.log 2> log/matches_3_$DATESTR
 
 # TODO
 - Increase number of threads from 8 to 16 to see if we can fetch more data?
+  - Moved to urllib3, see if this resolves protocol errors I was seeing before.
 - Use new MariaDB database to compare pre- and post-patch winrrates.
 - Migrate `fetch.py` over to using MariaDB
   - Needs to load initial dictionary of known matches on started (at least within a reasonable data range)

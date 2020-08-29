@@ -25,11 +25,14 @@ import sqlite3
 from dota_pb import dota_pb2
 from multiprocessing import Pool
 from functools import partial
+import urllib
+from urllib.request import Request
+
 
 #----------------------------------------------
 # Globals
 #----------------------------------------------
-NUM_THREADS=16     # Set to 1 for single threaded execution
+NUM_THREADS=16    # Set to 1 for single threaded execution
 PAGES_PER_HERO=10
 MIN_MATCH_LEN=1200
 STEAM_KEY=os.environ['STEAM_KEY']
@@ -97,20 +100,28 @@ def fetch_url(url):
         time.sleep(sleep)
 
         try:
-            rv=requests.get(url)
-            if rv.status_code==200:
-                r=json.loads(rv.text)['result']
-                # Check to see if we have an error
+            req=Request(url, headers={
+                'User-Agent' : 'Mozilla/5.0 (Macintosh; Intel Mac OS X '\
+                               '10_15_6) AppleWebKit/537.36 (KHTML, like '\
+                               'Gecko) Chrome/85.0.4183.83 Safari/537.36',
+                'Accept' : 'gzip',
+                'Content-Encoding' : 'gzip',
+                'Content-Type' : 'application/json',
+                }) 
+            
+            r2=urllib.request.urlopen(req)
+            if r2.code==200:
+                txt=r2.read()
+                r=json.loads(txt)
                 if 'error' in r:
-
                     if r['error']=='Match ID not found':
                         raise(APIException("Match ID not found"))
                     else:
                         raise(APIException(r['error']))
                 else:
-                    return(json.loads(rv.text)['result'])
+                    return(r['result'])
         except:
-            pass
+                pass
 
     raise(ValueError("Could not fetch: {}".format(url)))
 
@@ -270,6 +281,7 @@ def process_match(hero, skill, match_id):
     """Process a single match, used by the multi-threading engine."""
 
     txt="match ID {0} hero {1:3} skill {2}".format(match_id, hero, skill)
+
     try:
         match=fetch_match(match_id, skill)
     except APIException as e:
@@ -298,7 +310,7 @@ def process_matches(match_ids, hero, skill, conn):
                                                     len(match_ids)))
 
     if NUM_THREADS==1:
-        matches=[process_match(match_id,hero,skill) for \
+        matches=[process_match(hero,skill,match_id) for \
                     match_id in match_ids]
     else:
         f=partial(process_match,hero,skill)
@@ -357,7 +369,7 @@ def fetch_matches(hero, skill, conn):
 
 def usage():
     txt="""
-python fetch.py <[hero name]|"all"> <skill level> <sleep timer (seconds)>
+python fetch.py <[hero name]|all> <skill level>
     """
     print(txt)
     sys.exit(1)
@@ -366,7 +378,7 @@ if __name__=="__main__":
 
     # Check command line arguments and setup hero list and
     # skill level
-    if len(sys.argv)<4:
+    if len(sys.argv)<3:
         usage()
 
     hero_name=sys.argv[1].lower()
@@ -384,10 +396,6 @@ if __name__=="__main__":
         skill = int(t)
     else:
         usage()
-
-    sleep_timer=sys.argv[3]
-    if sleep_timer == 0:
-        sleep_timer = 3600
 
     # Setup filename
     SQL_STATS_FILE="matches_{0}_{1}_{2}.db".format(
