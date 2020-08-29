@@ -1,25 +1,29 @@
 # Summary
 
-Uses Dota 2 REST API to fetch matches by skill level and hero, creates an SQLite3 database, which is in turn used to generate summary statistics.
+This program uses the Dota 2 REST API to fetch match information by skill level and hero, storing results in a configured MariaDB instance. The scripts are designed to be run in the background using e.g. `crontab` to continuously harvest match data.
 
-Key files:
-- `fetch.py` runs in background fetching new data.
-- `process.py` processes database into win by position summary statistics (?)
-- `hero_overall_winrate.ipynb`: Simple calculation of a hero's winrate.
+The project also includes several analysis scripts, which use a variety of a summary statistics and machine learning techniques to extract insight from the data.
+
+Overview of the key files:
+- `fetch.py` runs in background fetching new data, the main script which runs in the background
 
 
 # Setup
 
-Install required python packages:
+After cloning the repository, it is suggested that you setup a virtual environment and install the required python packages:
 
+	cd dota_stats
+	python3 -m venv env
+	source env/bin/activate
+	pip install --upgrade pipe
 	pip install -i requirements.txt
 
-Setup MariaDB configuration, substituting in a strong password for `password1`. Note that using `MyISAM` as the engine on a Raspberry PI had a profound impact on performance.
+Proceed to follow instructions to setup MariaDB on your platform.  Login as root substituting and run the following script, substituting in a strong password for `password1`. Note that using MyISAM (vs. InnoDB) as the engine on a Raspberry PI had a profound impact on performance, this may not be true on all platforms. The following script creates the production database, you may find it helpful to repeat for a development environment.
 
 ```
-DROP DATABASE if exists dota;
-CREATE DATABASE dota;
-USE dota;
+DROP DATABASE if exists dota_prod;
+CREATE DATABASE dota_prod;
+USE dota_prod;
 CREATE TABLE dota_matches (match_id BIGINT PRIMARY KEY, \
                          start_time BIGINT, \
                          radiant_heroes CHAR(32), \
@@ -30,44 +34,50 @@ CREATE TABLE dota_matches (match_id BIGINT PRIMARY KEY, \
                          gold_spent VARCHAR(1024))
                          ENGINE = 'MyISAM';
                          
-
-
-CREATE USER 'dota'@localhost IDENTIFIED BY 'password1';
-GRANT ALL PRIVILEGES ON dota.* TO 'dota'@localhost;
+CREATE USER 'dota_prod'@localhost IDENTIFIED BY 'password1';
+GRANT ALL PRIVILEGES ON dota.* TO 'dota_prod'@localhost;
 ```
 
-Add the following environmental variables to your shell:
+For each environment, I generally create a file `env.sh` which sets the appropriate environmental variables and boots up the python environment (`env.sh`):
 
 	export STEAM_KEY=1234567890....
 	export DOTA_USERNAME=dota
 	export DOTA_PASSWORD=password1
+	
+	source ./env/bin/activate
 
-Create a basic shell script which activates the virtual environment and runs with required options. This script can be run from a user based crontab. It should export the same environmental variables as the shell to ensure the scripts work properly.
+**export DOTA_DATABASE=dota_prod**
+
+Prior to doing any work, `source` the file above (note that running the script will not work as the environmental variables will not be persistant).
+
+Next create a basic shell script (`fetch_prod.sh`) which activates the virtual environment and runs with required options. This script will be run from a user based crontab. 
 
 ```
 #!/bin/bash
-export STEAM_KEY=1234567890....
-export DOTA_USERNAME=dota
-export DOTA_PASSWORD=password1
-
-
-cd dota-stats
-source ./env/bin/activate
+cd dota-prod
+source env.sh
 mkdir -p log
 
 export DATESTR=`date +"%Y%m%d%H"`
-python fetch.py all 1 60 1> log/matches_1_$DATESTR.log 2> log/matches_1_$DATESTR.err
-export DATESTR=`date +"%Y%m%d%H"`
-python fetch.py all 3 60 1> log/matches_3_$DATESTR.log 2> log/matches_3_$DATESTR.err
+python fetch.py all 1 &> log/matches_1_$DATESTR.log
+```
+
+All of this can then be setup to run on a regular basis using a user crontab (`crontab -e`). The use of `flock` is suggested to ensure that multiple jobs are not running at the same time. `flock` accounts for a lot of the odd bookkeeping.
+
+```
+05 */2 * * * /usr/bin/flock -n /tmp/fetch_prod.lockfile bash -l -c '/home/pi/fetch_prod.sh'
 ```
 
 
+
 # TODO
+
 - Increase number of threads from 8 to 16 to see if we can fetch more data?
   - Moved to urllib3, see if this resolves protocol errors I was seeing before.
 - Use new MariaDB database to compare pre- and post-patch winrrates.
 - Migrate `fetch.py` over to using MariaDB
   - Needs to load initial dictionary of known matches on started (at least within a reasonable data range)
+  - Table/user/database/etc... needs to be setup in environment to allow for development testing
 - Check that the new logic excluding previously fetched matches is working... search for "matches for processing" in logs toward the end...
 - In `fetch/process_match` see if exceptions are causing a hard stop (they should??)
 - Profile/optimize `fetch.py` so that all high skill level games can be captured. Histogram of match times should not have any missing data.

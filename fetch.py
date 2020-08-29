@@ -32,7 +32,7 @@ from urllib.request import Request
 #----------------------------------------------
 # Globals
 #----------------------------------------------
-NUM_THREADS=16    # Set to 1 for single threaded execution
+NUM_THREADS=4       # Set to 1 for single threaded execution
 PAGES_PER_HERO=10
 MIN_MATCH_LEN=1200
 STEAM_KEY=os.environ['STEAM_KEY']
@@ -115,14 +115,17 @@ def fetch_url(url):
                 r=json.loads(txt)
                 if 'error' in r:
                     if r['error']=='Match ID not found':
+                        print("*** ",url)
                         raise(APIException("Match ID not found"))
                     else:
+                        print("*** ",url)
                         raise(APIException(r['error']))
                 else:
                     return(r['result'])
         except:
                 pass
 
+    print("*** ",url)
     raise(ValueError("Could not fetch: {}".format(url)))
 
 
@@ -130,7 +133,7 @@ def parse_match(match):
     """
     Input: match information in JSON format
     """
-    match['batch_time']=int(dt.datetime.fromtimestamp(match['start_time']).strftime("%Y%m%d%H"))
+    match['batch_time']=int(dt.datetime.fromtimestamp(match['start_time']).strftime("%Y%m%d_%H%M"))
     dt1=dt.datetime.utcfromtimestamp(match['start_time'])
             
     radiant_heroes=[]
@@ -401,7 +404,7 @@ if __name__=="__main__":
     SQL_STATS_FILE="matches_{0}_{1}_{2}.db".format(
             skill,
             hero_name,
-            dt.datetime.now().strftime("%Y%m%d%H"))
+            dt.datetime.now().strftime("%Y%m%d_%H%M"))
 
     # Setup database
     SQL_STATS_TABLE="dota_stats"
