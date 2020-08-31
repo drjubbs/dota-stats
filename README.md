@@ -1,11 +1,14 @@
 # Summary
 
-This program uses the Dota 2 REST API to fetch match information by skill level and hero, storing results in a configured MariaDB instance. The scripts are designed to be run in the background using e.g. `crontab` to continuously harvest match data.
+This program uses the Dota 2 REST API (see https://steamwebapi.azurewebsites.net/) to fetch match information by skill level and hero, storing results in a configured MariaDB instance. The scripts are designed to be run in the background using e.g. `crontab` to continuously harvest match data.
 
 The project also includes several analysis scripts, which use a variety of a summary statistics and machine learning techniques to extract insight from the data.
 
 Overview of the key files:
-- `fetch.py` runs in background fetching new data, the main script which runs in the background
+- `fetch.py` runs in background fetching new data. It takes command line arguments for which hero and skill level to fetch. This is usually setup to run in the background using a crontab with a lock.
+- `fetch_summary.py` can be run to update the summary statistics in the `fetch_summary` table. This is used to track job health.
+- `compact_db.py` earlier versions of the code using SQLite3 files instead of a MariaDB backend, this scripts compacts those files into a unique record set and transfers into MariaDB.
+- 
 
 
 # Setup
@@ -33,6 +36,8 @@ CREATE TABLE dota_matches (match_id BIGINT PRIMARY KEY, \
                          items VARCHAR(1024), \
                          gold_spent VARCHAR(1024))
                          ENGINE = 'MyISAM';
+                         
+CREATE TABLE fetch_summary (date_hour BIGINT PRIMARY KEY, rec_count INT) ENGINE='MyISAM';
                          
 CREATE USER 'dota_prod'@localhost IDENTIFIED BY 'password1';
 GRANT ALL PRIVILEGES ON dota.* TO 'dota_prod'@localhost;
@@ -72,6 +77,8 @@ All of this can then be setup to run on a regular basis using a user crontab (`c
 
 # TODO
 
+- Covert `fetch.py` to use MariaDB directly, eliminating the older SQLite3 staging files. Also modify to fetch all skill levels (not just normal skill) so that comparisons can be done at various skill levels. See what the impact on # of records fetched is.
+- Add the summary statistics update to the end of the `fetch.sh` script so that the match count is automatically populated.
 - Increase number of threads from 8 to 16 to see if we can fetch more data?
   - Moved to urllib3, see if this resolves protocol errors I was seeing before.
 - Use new MariaDB database to compare pre- and post-patch winrrates.

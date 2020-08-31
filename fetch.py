@@ -32,7 +32,7 @@ from urllib.request import Request
 #----------------------------------------------
 # Globals
 #----------------------------------------------
-NUM_THREADS=4       # Set to 1 for single threaded execution
+NUM_THREADS=8       # Set to 1 for single threaded execution
 PAGES_PER_HERO=10
 MIN_MATCH_LEN=1200
 STEAM_KEY=os.environ['STEAM_KEY']
@@ -356,12 +356,25 @@ def fetch_matches(hero, skill, conn):
     while(counter<=PAGES_PER_HERO):
         log.info("Fetching more matches: {} of {}".format(
                                             counter,PAGES_PER_HERO))
-        url="https://api.steampowered.com/IDOTA2Match_570/GetMatchHistory/V001/?key={0}&skill={1}&start_at_match_id={2}&hero_id={3}".format(STEAM_KEY,skill,start_at_match_id,hero)
+
+        # Note: game_mode endpoint is not working...
+        url="https://api.steampowered.com/IDOTA2Match_570/GetMatchHistory"\
+                "/V001/?key={0}&"\
+                "skill={1}&"\
+                "start_at_match_id={2}&"\
+                "hero_id={3}".format(
+                        STEAM_KEY,
+                        skill,
+                        start_at_match_id,
+                        hero,
+                        )
+
         rv=requests.get(url)
         log.info("Done fetching more matches....")
         if rv.status_code==200:
             j=json.loads(rv.text)['result']        
             if j['num_results']>0:
+
                 match_ids=[t['match_id'] for t in j['matches']]
                 start_at_match_id=process_matches(match_ids, hero, skill, conn)
             counter=counter+1

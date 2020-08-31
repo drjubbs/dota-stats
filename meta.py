@@ -24,6 +24,11 @@ MODE_ENUM = {
     24 : 'Mutation'
 }
 
+REVERSE_MODE_ENUM={}
+for k,v in MODE_ENUM.items():
+    REVERSE_MODE_ENUM[v.upper().replace(" ","_").replace("(","").replace(")","")]=k
+    
+
 LOBBY_ENUM = {
 	'INVALID' : -1,
 	'CASUAL_MATCH' : 0,
