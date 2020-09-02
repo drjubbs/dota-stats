@@ -136,3 +136,4 @@ temp*.csv
 *.err
 env2/
 env.sh
+*.ipynb
