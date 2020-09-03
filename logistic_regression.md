@@ -47,7 +47,8 @@ print("{0} to {1}".format(BEGIN, END))
 conn = mariadb.connect(
     user=os.environ['DOTA_USERNAME'],
     password=os.environ['DOTA_PASSWORD'],
-    host="localhost",
+    host='192.168.86.120',
+    #os.environ['DOTA_HOSTNAME'],
     database=os.environ['DOTA_DATABASE'])
 c=conn.cursor()
 
@@ -65,6 +66,7 @@ print("Records: {}".format(len(rows)))
 ## Logistic Regression
 
 Use simple logistic regression to determine probability of a win. It's tempting to trying something like this:
+
 `log(p/(1-p)) = c0 + x1*c1 + x2*c2 + x3*c3 + ... `
 
 where `c0` is the intercept and represents the contribution from being on radiant, `x1` .. `xn` are indicator variables, where `1` indicates the hero was selected on radiant, and `-1` indicates the hero was selected on dire. The issue here is that the interpretation of the coefficients becomes difficult. If `c1` is high, does that mean a high win rate for radiant or a high loss rate for dire? It also assumes that each hero has symmetric effects, radiant vs. dire.
@@ -118,9 +120,9 @@ if not(np.all(a==b)):
 ```python
 #lr=LogisticRegression(C=0.01, fit_intercept=False)
 #lr=RandomForestClassifier(n_estimators=100,verbose=2)
-#lr=GradientBoostingClassifier(verbose=2)
-lr=LinearSVC(verbose=2)
-lr=SVC(kernel='rbf', verbose=2)
+lr=GradientBoostingClassifier(verbose=2)
+#lr=LinearSVC(verbose=2)
+#lr=SVC(kernel='rbf', verbose=2)
 lr.fit(X,y)
 ```
 
@@ -129,10 +131,6 @@ print(sum(y)/len(y))
 print(confusion_matrix(y,lr.predict(X)))
 print(accuracy_score(y,lr.predict(X)))
 print(balanced_accuracy_score(y,lr.predict(X)))
-```
-
-```python
-
 ```
 
 ```python

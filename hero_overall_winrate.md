@@ -24,6 +24,7 @@ import meta
 import json
 import pandas as pd
 import datetime as dt
+import pytz
 import re
 import plotly.express as px
 import pandas as pd
@@ -39,7 +40,7 @@ from sklearn import linear_model
 conn = mariadb.connect(
     user=os.environ['DOTA_USERNAME'],
     password=os.environ['DOTA_PASSWORD'],
-    host="localhost",
+    host=os.environ["DOTA_HOSTNAME"],
     database=os.environ['DOTA_DATABASE'])
 c=conn.cursor()
 ```
@@ -47,14 +48,19 @@ c=conn.cursor()
 ## Overall Health Plot
 
 ```python
-c.execute("select * from fetch_summary")
+c.execute("select date_hour, rec_count from fetch_summary")
 rows=c.fetchall()
-times=[dt.datetime.utcfromtimestamp(t[0]) for t in rows]
-cnts=[t[1] for t in rows]
-summary=pd.DataFrame({'time' : times, 'count' : cnts})
+times=[dt.datetime.fromtimestamp(t[0]) for t in rows]
+
+# Localize to my timezone (East Cost US)
+mytz=pytz.timezone("US/Eastern")
+times=[mytz.localize(t).strftime("%Y-%m-%dT%H:00:00") for t in times]
 ```
 
 ```python
+cnts=[t[1] for t in rows]
+summary=pd.DataFrame({'time' : times, 'count' : cnts})
+print(dt.datetime.utcnow())
 px.bar(summary, x='time', y='count')
 ```
 
