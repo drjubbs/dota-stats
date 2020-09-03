@@ -22,14 +22,14 @@ import meta
 #----------------------------------------------
 # Globals
 #----------------------------------------------
-NUM_THREADS=1     # Set to 1 for single threaded execution
+NUM_THREADS=8     # Set to 1 for single threaded execution
 PAGES_PER_HERO=10
 MIN_MATCH_LEN=1200
+INITIAL_HORIZON=1    # Days to load from database on start-up
 CTX=ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
 
 # Globals used in multi-threading
 MATCH_IDS = {}
-MISSING_HEROES = {}
 
 PLAYER_FIELDS = [
     "account_id",
@@ -281,10 +281,6 @@ def process_matches(match_ids, hero, skill, conn):
     log.info("%d valid matches to write to database",len(matches))
 
     for summary in matches:
-
-        # Set dictionary for start time so we don't fetch multiple times
-        MATCH_IDS[summary['match_id']]=summary['start_time']
-
         stmt = 'INSERT IGNORE INTO dota_matches '
         stmt += '(match_id, start_time, radiant_heroes, dire_heroes, '
         stmt += 'radiant_win, api_skill, items, gold_spent) '
@@ -336,6 +332,21 @@ def fetch_matches(hero, skill, conn):
             match_ids=[t['match_id'] for t in resp['matches']]
             start_at_match_id=process_matches(match_ids, hero, skill, conn)
 
+        # Set dictionary for start time so we don't fetch multiple times,
+        # both in current cache as well as the database.
+        matches=[]
+        start_times=[]
+        for match in resp['matches']:
+            MATCH_IDS[match['match_id']]=match['start_time']
+            matches.append(match['match_id'])
+            start_times.append(match['start_time'])
+       
+        if len(matches)>1:
+            stmt="INSERT IGNORE INTO fetch_history VALUES(?,?)"
+            cursor=conn.cursor()
+            cursor.executemany(stmt, [t for t in zip(matches,start_times)])
+            conn.commit()
+
         counter=counter+1
 
     print("Matches per minute: {0}".format(60*counter/(time.time()-start)))
@@ -374,6 +385,26 @@ def main():
         password=os.environ['DOTA_PASSWORD'],
         host=os.environ['DOTA_HOSTNAME'],
         database=os.environ['DOTA_DATABASE'])
+    cursor=conn.cursor()
+
+    # Populate dictionary with matches we already have within
+    # INITIAL_HORIZON (don't refetch there)
+
+    # Get UTC timestamps spanning HORIZON_DAYS ago to today
+    start_time=int((dt.datetime.utcnow()-dt.timedelta(days=INITIAL_HORIZON)).timestamp())
+    end_time=int(dt.datetime.utcnow().timestamp())
+
+    stmt="SELECT match_id, start_time "
+    stmt+="FROM fetch_history WHERE start_time>={0} and start_time<={1};"
+    stmt=stmt.format(start_time, end_time)
+    print(stmt)
+
+    cursor.execute(stmt)
+    rows=cursor.fetchall()
+    print("Records to seed MATCH_IDS: {}".format(len(rows)))
+
+    for row in rows:
+        MATCH_IDS[row[0]]=row[1]
 
     counter=1
     for hero in heroes:

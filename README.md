@@ -1,6 +1,6 @@
 # Summary
 
-This program uses the Dota 2 REST API (see https://steamwebapi.azurewebsites.net/) to fetch match information by skill level and hero, storing results in a configured MariaDB instance. The scripts are designed to be run in the background using e.g. `crontab` to continuously harvest match data.
+This program uses the Dota 2 REST API (see https://steamwebapi.azurewebsites.net/ for "better documentation, although much is not implemented") to fetch match information by skill level and hero, storing results in a configured MariaDB instance. The scripts are designed to be run in the background using e.g. `crontab` to continuously harvest match data.
 
 The project also includes several analysis scripts, which use a variety of a summary statistics and machine learning techniques to extract insight from the data.
 
@@ -40,8 +40,13 @@ CREATE TABLE dota_matches (match_id BIGINT PRIMARY KEY, \
                          items VARCHAR(1024), \
                          gold_spent VARCHAR(1024))
                          ENGINE = 'MyISAM';
-                         
-CREATE TABLE fetch_summary (date_hour BIGINT PRIMARY KEY, rec_count INT) ENGINE='MyISAM';
+
+CREATE TABLE fetch_summary (date_hour BIGINT PRIMARY KEY,\
+                            skill INT,\
+                            rec_count INT) ENGINE='MyISAM';
+
+CREATE TABLE fetch_history (match_id BIGINT PRIMARY KEY,\
+                            start_time BIGINT) ENGINE='MyISAM';
                          
 CREATE USER 'dota_prod'@'192.168.%.%' IDENTIFIED BY 'password1';
 GRANT ALL PRIVILEGES ON dota_prod.* TO 'dota_prod'@'192.168.%.%';
@@ -56,8 +61,6 @@ For each environment, I generally create a file `env.sh` which sets the appropri
 	export DOTA_DATABASE=dota_prod
 	
 	source ./env/bin/activate
-
-**export DOTA_DATABASE=dota_prod**
 
 Prior to doing any work, `source` the file above (note that running the script will not work as the environmental variables will not be persistant).
 
@@ -83,8 +86,8 @@ All of this can then be setup to run on a regular basis using a user crontab (`c
 
 # TODO
 
-- Covert `fetch.py` to use MariaDB directly, eliminating the older SQLite3 staging files. Also modify to fetch all skill levels (not just normal skill) so that comparisons can be done at various skill levels. See what the impact on # of records fetched is.
-- Add the summary statistics update to the end of the `fetch.sh` script so that the match count is automatically populated.
+- Check health of newest dev code (9/3/2020), record count by skill level in bar graph (in overall winrate notebook)
+- Clean-up/linting stopped at fetch
 - Increase number of threads from 8 to 16 to see if we can fetch more data?
   - Moved to urllib3, see if this resolves protocol errors I was seeing before.
 - Use new MariaDB database to compare pre- and post-patch winrrates.
