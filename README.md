@@ -21,7 +21,11 @@ After cloning the repository, it is suggested that you setup a virtual environme
 	pip install --upgrade pipe
 	pip install -i requirements.txt
 
-Proceed to follow instructions to setup MariaDB on your platform.  Login as root substituting and run the following script, substituting in a strong password for `password1`. Note that using MyISAM (vs. InnoDB) as the engine on a Raspberry PI had a profound impact on performance, this may not be true on all platforms. The following script creates the production database, you may find it helpful to repeat for a development environment. I have separate servers for fetching new data and processing the data so the DB users are defined across my subnet.
+Proceed to follow instructions to setup MariaDB on your platform.   You may need to allow remote access if your analysis machine is different from your database, this usually involves setting the `bind-address` in MariaDB to `0.0.0.0` or commenting out that line.
+
+Login as root substituting and run the following script, substituting in a strong password for `password1`. Note that using MyISAM (vs. InnoDB) as the engine on a Raspberry PI had a profound impact on performance, this may not be true on all platforms. 
+
+The following script creates the production database, you may find it helpful to repeat for a development environment. I have separate servers for fetching new data and processing the data so the DB users are defined across my subnet.
 
 ```
 DROP DATABASE if exists dota_prod;
@@ -40,14 +44,16 @@ CREATE TABLE dota_matches (match_id BIGINT PRIMARY KEY, \
 CREATE TABLE fetch_summary (date_hour BIGINT PRIMARY KEY, rec_count INT) ENGINE='MyISAM';
                          
 CREATE USER 'dota_prod'@'192.168.%.%' IDENTIFIED BY 'password1';
-GRANT ALL PRIVILEGES ON dota.* TO 'dota_prod'@'192.168.%.%';
+GRANT ALL PRIVILEGES ON dota_prod.* TO 'dota_prod'@'192.168.%.%';
 ```
 
 For each environment, I generally create a file `env.sh` which sets the appropriate environmental variables and boots up the python environment (`env.sh`):
 
 	export STEAM_KEY=1234567890....
-	export DOTA_USERNAME=dota
+	export DOTA_USERNAME=dota_prod
 	export DOTA_PASSWORD=password1
+	export DOTA_HOSTNAME=192.168.1.100
+	export DOTA_DATABASE=dota_prod
 	
 	source ./env/bin/activate
 

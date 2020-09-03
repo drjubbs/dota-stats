@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 # coding: utf-8
-
-# In[1]:
-
-
 import os
 import mariadb
 import datetime as dt
@@ -26,7 +22,7 @@ end_time=int(dt.datetime.utcnow().timestamp())
 conn = mariadb.connect(
     user=os.environ['DOTA_USERNAME'],
     password=os.environ['DOTA_PASSWORD'],
-    host="localhost",
+    host=os.environ['DOTA_HOSTNAME'],
     database=os.environ['DOTA_DATABASE'])
 c=conn.cursor()
 stmt="SELECT start_time, match_id FROM dota_matches WHERE start_time>={0} and start_time<={1};".format(
@@ -50,10 +46,3 @@ for idx,row in summary.iterrows():
     stmt="INSERT INTO fetch_summary VALUES (?,?) ON DUPLICATE KEY UPDATE rec_count=(?)"
     c.execute(stmt, (int(idx), int(row['match_ids']), int(row['match_ids'])))
 conn.close()    
-
-
-# In[ ]:
-
-
-
-
