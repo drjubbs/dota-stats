@@ -22,7 +22,7 @@ import meta
 #----------------------------------------------
 # Globals
 #----------------------------------------------
-NUM_THREADS=8     # Set to 1 for single threaded execution
+NUM_THREADS=12    # Set to 1 for single threaded execution
 PAGES_PER_HERO=10
 MIN_MATCH_LEN=1200
 INITIAL_HORIZON=1    # Days to load from database on start-up
@@ -85,16 +85,16 @@ def fetch_url(url):
     """Simple wait loop around fetching to deal with things like network
     outages, etc..."""
 
-    sleep_schedule=[0.1,1.0,2,10,30,60,300,500,1000,2000]
+    sleep_schedule=[0.25,1.0,2,10,30,60,300,500,1000,2000]
     for sleep in sleep_schedule:
-        try:
-            time.sleep(np.random.uniform(0.3*sleep,0.7*sleep))
-            req=request.Request(url, headers={
-                'Accept' : 'gzip',
-                'Content-Encoding' : 'gzip',
-                'Content-Type' : 'application/json',
-                })
+        time.sleep(np.random.uniform(0.3*sleep,0.7*sleep))
+        req=request.Request(url, headers={
+            'Accept' : 'gzip',
+            'Content-Encoding' : 'gzip',
+            'Content-Type' : 'application/json',
+            })
 
+        try:
             resp=request.urlopen(req,context=CTX)
             if resp.code==200:
                 txt=resp.read()
@@ -103,10 +103,19 @@ def fetch_url(url):
                     print("*** ",url)
                     raise APIException("Match ID not found")
                 return resp_json['result']
-        except error.HTTPError as e_msg:
-            log.error("%s", e_msg)
-            time.sleep(np.random.uniform(0.3*sleep,0.7*sleep))
 
+        # Catch exceptions, sleep a little, and re-try until
+        # our sleep schedule is exhausted.
+        except error.HTTPError as http_e:
+            log.error("error.HTTPError  %s", http_e.msg)
+            time.sleep(np.random.uniform(0.5,1.5))
+
+        except error.URLError as url_e:
+            log.error("error.URLError  %s", url_e.msg)
+            time.sleep(np.random.uniform(0.5,1.5))
+
+
+    
     raise ValueError("Could not fetch (timeout?): {}".format(url))
 
 def parse_players(match_id, players):
