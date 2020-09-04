@@ -36,8 +36,8 @@ from scipy import sparse
 
 ```python
 # Data selection
-BEGIN=dt.datetime(2020,8,31)
-END=dt.datetime(2020,9,1,12,0,0)
+BEGIN=dt.datetime(2020,9,3)
+END=dt.datetime(2020,9,4)
 SKILL=1
 print("{0} to {1}".format(BEGIN, END))
 ```
@@ -63,15 +63,15 @@ rows=c.fetchall()
 print("Records: {}".format(len(rows)))
 ```
 
-## Logistic Regression
+## Encoding for Classification
 
-Use simple logistic regression to determine probability of a win. It's tempting to trying something like this:
+Use classifiers to determine probability of a win. It's tempting to trying a linear model like this:
 
 `log(p/(1-p)) = c0 + x1*c1 + x2*c2 + x3*c3 + ... `
 
-where `c0` is the intercept and represents the contribution from being on radiant, `x1` .. `xn` are indicator variables, where `1` indicates the hero was selected on radiant, and `-1` indicates the hero was selected on dire. The issue here is that the interpretation of the coefficients becomes difficult. If `c1` is high, does that mean a high win rate for radiant or a high loss rate for dire? It also assumes that each hero has symmetric effects, radiant vs. dire.
+where `c0` is the intercept and represents the contribution from being on radiant, `x1` .. `xn` are indicator variables, where `1` indicates the hero was selected on radiant, and `-1` indicates the hero was selected on dire. The issue here is that the interpretation of the coefficients becomes difficult. If `c1` is high, does that mean a high win rate for radiant or a high loss rate for dire? This assumes that each hero has symmetric effects, radiant vs. dire.
 
-Instead we will break each game into two vectors, a winner and loser, and use only `{0,1}` indicator variables:
+Instead we will break each game into two vectors, radiant and dire, and use only `{0,1}` indicator variables. For logistic classificaiton:
 
 `log(p/(1-p)) = a0 + x1*b1 + x2*b2 + x3*b3 + ... + y1*c1 + y2*c2 + y3*c3 + ...`
 
@@ -119,8 +119,8 @@ if not(np.all(a==b)):
 
 ```python
 #lr=LogisticRegression(C=0.01, fit_intercept=False)
-#lr=RandomForestClassifier(n_estimators=100,verbose=2)
-lr=GradientBoostingClassifier(verbose=2)
+lr=RandomForestClassifier(n_estimators=1000, verbose=1)
+#lr=GradientBoostingClassifier(verbose=2)
 #lr=LinearSVC(verbose=2)
 #lr=SVC(kernel='rbf', verbose=2)
 lr.fit(X,y)
@@ -131,25 +131,6 @@ print(sum(y)/len(y))
 print(confusion_matrix(y,lr.predict(X)))
 print(accuracy_score(y,lr.predict(X)))
 print(balanced_accuracy_score(y,lr.predict(X)))
-```
-
-```python
-summary=pd.DataFrame(lr.coef_.reshape(num_heroes,2,order='F'))
-summary.columns=['radiant','dire']
-summary.index=meta.HERO_DICT.values()
-```
-
-```python
-for idx,row in summary.sort_values(by='radiant', ascending=False).iterrows():
-    print("{0:20} {1:7.2f} {2:7.2f}".format(idx,row[0]*100,row[1]*100))
-```
-
-```python
-lr
-```
-
-```python
-dir(lr)
 ```
 
 ```python

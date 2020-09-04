@@ -71,11 +71,12 @@ df=df[["P{}".format(t+1) for t in range(5)]]
 # Apply mask and renormalize one last time, allow
 # some small probability in all positions
 mask=pd.read_csv("position_mask.dat", index_col=0)
+
+missing=set(df.index.values)-set(mask.index.values)
+if len(missing)!=0:
+    raise(ValueError("{0} missing in position_mask.dat".format(missing)))
+
 prior=df*mask
 prior=prior.replace(0, 0.01)
 prior=prior.div(prior.sum(axis=1), axis=0)
-
-if not(df.shape==(117,5)):
-    raise(ValueError("Incorrect number of heroes"))
-
 prior.to_csv("position_prior.dat", encoding='utf-8')

@@ -28,10 +28,16 @@ import pytz
 import re
 import plotly.express as px
 import pandas as pd
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import *
-import numpy as np
-from sklearn import linear_model
+```
+
+## Parameters for Analysis
+
+```python
+BEGIN=dt.datetime(2020,9,3)
+END=dt.datetime(2020,9,4)
+SKILL=1
+title="{0} to {1}, skill={2}".format(BEGIN, END, SKILL)
+print(title)
 ```
 
 ## Database connection
@@ -45,33 +51,7 @@ conn = mariadb.connect(
 c=conn.cursor()
 ```
 
-## Overall Health Plot
-
-```python
-c.execute("select date_hour, rec_count from fetch_summary")
-rows=c.fetchall()
-times=[dt.datetime.fromtimestamp(t[0]) for t in rows]
-
-# Localize to my timezone (East Cost US)
-mytz=pytz.timezone("US/Eastern")
-times=[mytz.localize(t).strftime("%Y-%m-%dT%H:00:00") for t in times]
-```
-
-```python
-cnts=[t[1] for t in rows]
-summary=pd.DataFrame({'time' : times, 'count' : cnts})
-print(dt.datetime.utcnow())
-px.bar(summary, x='time', y='count')
-```
-
 ## Read in rows within a timerange
-
-```python
-BEGIN=dt.datetime(2020,8,31)
-END=dt.datetime(2020,9,1)
-SKILL=1
-print("{0} to {1}".format(BEGIN, END))
-```
 
 ```python
 stmt="SELECT start_time, match_id, radiant_heroes, dire_heroes, radiant_win FROM dota_matches WHERE start_time>={0} and start_time<={1} and api_skill={2}".format(
@@ -98,7 +78,9 @@ fig=px.histogram(df_times, x='times')
 fig.show()
 ```
 
-## Calculate winners
+## Summary statistics
+
+Tally win rate and pick rates, keeping radiant and dire seperate (allow for asymmetry).
 
 ```python
 radiant_win=[]
@@ -131,6 +113,8 @@ for row in rows:
 ```
 
 ```python
+# Convert the lists into DataFrames which are easier to manipulate
+
 # Radiant Summary
 df_radiant_win=pd.DataFrame(radiant_win, columns=['hero'])
 df_radiant_win['radiant_win']=1
@@ -163,6 +147,7 @@ df_hero['win_pct']=100.0*df_hero['win']/df_hero['total']
 
 ```python
 # Integrity checks... totals and winners should agree with match counts
+
 if not(int(df_hero.sum()['radiant_total'])==len(rows*5)):
     raise(ValueError("Data integrity check fail"))
 if not(int(df_hero.sum()['dire_total'])==len(rows*5)):

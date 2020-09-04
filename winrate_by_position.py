@@ -1,5 +1,9 @@
 """
-Algorthm for win probability by farm position.
+Algorthm for win probability by farm position. Position is inferred from
+a combination of actual gold farmed and a Bayesian like prior based on
+actual laning percentages (from dotabuff.com) and a 0/1 mask which is 
+manually constructed for each hero (e.g. witch doctor should never be
+position 1).
 
 First calculate probability of a role, assuming input heroes position equals
 post game GPM. Then iterate and re-assign match by match, based on maximium 
@@ -33,7 +37,7 @@ from itertools import permutations
 DEBUG_MATCH=0
 PRIOR_WEIGHT=5
 SQL_STATS_TABLE=os.environ['DOTA_SQL_STATS_TABLE']
-    
+
 # Setup indices for hero matrix, note this won't match hero number necessarily
 HEROES_LOWER={}
 for k,v in meta.HERO_DICT.items():
@@ -146,7 +150,7 @@ def fix_positions(rows, prob_position):
 
     return(max_L_rows)
 
-    
+
 def usage():
     print("python process.py <filename>")
     sys.exit(1)
