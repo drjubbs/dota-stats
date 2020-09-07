@@ -22,7 +22,7 @@ import meta
 #----------------------------------------------
 # Globals
 #----------------------------------------------
-NUM_THREADS=12    # Set to 1 for single threaded execution
+NUM_THREADS=8    # Set to 1 for single threaded execution
 PAGES_PER_HERO=10
 MIN_MATCH_LEN=1200
 INITIAL_HORIZON=1    # Days to load from database on start-up
@@ -85,7 +85,7 @@ def fetch_url(url):
     """Simple wait loop around fetching to deal with things like network
     outages, etc..."""
 
-    sleep_schedule=[0.25,1.0,2,10,30,60,300,500,1000,2000]
+    sleep_schedule=[0.25,1.0,2,10,30,60,300,500,1000,1800,1800,1800,1800,1800]
     for sleep in sleep_schedule:
         time.sleep(np.random.uniform(0.3*sleep,0.7*sleep))
         req=request.Request(url, headers={
@@ -111,7 +111,7 @@ def fetch_url(url):
             time.sleep(np.random.uniform(0.5,1.5))
 
         except error.URLError as url_e:
-            log.error("error.URLError  %s", url_e.msg)
+            log.error("error.URLError  %s", url_e.reason)
             time.sleep(np.random.uniform(0.5,1.5))
 
 
@@ -145,6 +145,9 @@ def parse_players(match_id, players):
 
         # Check to see if we're missing a hero ID
         if player['hero_id'] not in meta.HERO_DICT.keys():
+
+            if player['hero_id']==0:
+                raise ParseException("Null Hero ID")
             raise ValueError("Missing hero: {}".format(match_id))
 
         # Check for intentional feeding
