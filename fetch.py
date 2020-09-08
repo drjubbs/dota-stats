@@ -18,6 +18,7 @@ import numpy as np
 import mariadb
 import simplejson as json
 import meta
+import http.client
 
 #----------------------------------------------
 # Globals
@@ -113,6 +114,10 @@ def fetch_url(url):
         except error.URLError as url_e:
             log.error("error.URLError  %s", url_e.reason)
             time.sleep(np.random.uniform(0.5,1.5))
+
+        except http.client.RemoteDisconnected as http_e:
+            log.error("http.client.RemoteDisconnected  %s", http_e.reason)
+            
 
 
     
