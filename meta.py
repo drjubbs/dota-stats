@@ -27,7 +27,7 @@ MODE_ENUM = {
 REVERSE_MODE_ENUM={}
 for k,v in MODE_ENUM.items():
     REVERSE_MODE_ENUM[v.upper().replace(" ","_").replace("(","").replace(")","")]=k
-    
+
 
 LOBBY_ENUM = {
 	'INVALID' : -1,
@@ -122,16 +122,21 @@ HERO_DICT= {
         121: 'grimstroke', 126: 'void-spirit', 128: 'snapfire', 
         129: 'mars'}
 
+# +
 REVERSE_HERO_DICT = {}
 for k,v in HERO_DICT.items():
     REVERSE_HERO_DICT[v]=k
+    
+HEROES=list(HERO_DICT.keys())
+NUM_HEROES=len(HEROES)
+# -
 
 # Get items dictionary from OpenDota source:
 #   https://github.com/odota/dotaconstants 
 with open('items.json') as f:
     txt=f.read()
     ITEMS=json.loads(txt)
-    
+
 REVERSE_ITEM={}
 for k,v in ITEMS.items():
     REVERSE_ITEM[v['id']]=k

@@ -33,9 +33,9 @@ import pandas as pd
 ## Parameters for Analysis
 
 ```python
-BEGIN=dt.datetime(2020,9,3)
-END=dt.datetime(2020,9,4)
-SKILL=1
+BEGIN=dt.datetime(2020,9,5)
+END=dt.datetime(2020,9,7)
+SKILL=3
 title="{0} to {1}, skill={2}".format(BEGIN, END, SKILL)
 print(title)
 ```
@@ -230,4 +230,8 @@ fig.update_layout(
     width=900,
     height=900,)
 fig.show()
+```
+
+```python
+
 ```

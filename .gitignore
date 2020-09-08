@@ -137,3 +137,4 @@ temp*.csv
 env2/
 env.sh
 *.ipynb
+*.npz

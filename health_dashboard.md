@@ -72,3 +72,7 @@ df_melt=df_summary.melt(id_vars='date_hour',value_vars=['normal','high','very_hi
 df_melt.columns=['date_hour','skill','count']
 px.bar(df_melt, x='date_hour', y='count', color='skill')
 ```
+
+```python
+
+```
