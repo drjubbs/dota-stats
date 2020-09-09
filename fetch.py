@@ -13,12 +13,12 @@ import ssl
 from urllib import request, error
 from functools import partial
 from concurrent import futures
+import http.client
 import datetime as dt
 import numpy as np
 import mariadb
 import simplejson as json
 import meta
-import http.client
 
 #----------------------------------------------
 # Globals
@@ -116,11 +116,8 @@ def fetch_url(url):
             time.sleep(np.random.uniform(0.5,1.5))
 
         except http.client.RemoteDisconnected as http_e:
-            log.error("http.client.RemoteDisconnected  %s", http_e.reason)
-            
+            log.error("http.client.RemoteDisconnected  %s", str(http_e))
 
-
-    
     raise ValueError("Could not fetch (timeout?): {}".format(url))
 
 def parse_players(match_id, players):
@@ -315,12 +312,6 @@ def process_matches(match_ids, hero, skill, conn):
                        )
     conn.commit()
 
-    # Return the lowest match id for the next page
-    try:
-        return min(match_ids)
-    except ValueError:
-        return 0
-
 
 def fetch_matches(hero, skill, conn):
     """Gets list of matches by page. This is just the index, not the
@@ -333,21 +324,35 @@ def fetch_matches(hero, skill, conn):
     url="https://api.steampowered.com/IDOTA2Match_570/GetMatchHistory/"
     url+="V001/?key={0}&skill={1}&start_at_match_id={2}&hero_id={3}"
 
-    while counter<=PAGES_PER_HERO:
+    no_results_remain = False
+    while not no_results_remain:
         log.info("Fetching more matches: %d of %d", counter, PAGES_PER_HERO)
 
-        resp=fetch_url(url.format(
-            os.environ["STEAM_KEY"],
-            skill,
-            start_at_match_id,
-            hero,
-            ))
+        # There is a bug in valve API with load balancing, sometimes
+        # the API returns no matches, so we'll re-try a few times
+        # if we expect more matches.
+        retry=0
+        while retry<10:
+            resp=fetch_url(url.format(
+                os.environ["STEAM_KEY"],
+                skill,
+                start_at_match_id,
+                hero,
+                ))
 
-        log.info("Done fetching more matches....")
+            log.info("num_results (try %d) %d", retry, resp['num_results'])
+
+            # If we found results, break out of loop
+            if resp['num_results']>0:
+                break
+
+            time.sleep(1)
+            retry=retry+1
 
         if resp['num_results']>0:
             match_ids=[t['match_id'] for t in resp['matches']]
-            start_at_match_id=process_matches(match_ids, hero, skill, conn)
+            process_matches(match_ids, hero, skill, conn)
+            start_at_match_id=min(match_ids)-1
 
         # Set dictionary for start time so we don't fetch multiple times,
         # both in current cache as well as the database.
@@ -357,12 +362,20 @@ def fetch_matches(hero, skill, conn):
             MATCH_IDS[match['match_id']]=match['start_time']
             matches.append(match['match_id'])
             start_times.append(match['start_time'])
-       
+
         if len(matches)>1:
             stmt="INSERT IGNORE INTO fetch_history VALUES(?,?)"
             cursor=conn.cursor()
             cursor.executemany(stmt, [t for t in zip(matches,start_times)])
             conn.commit()
+
+        # Exit if no results remain
+        if resp['results_remaining']==0:
+            no_results_remain=True
+        else:
+            log.info("Remaining %d (Match ID %d)",
+                        resp['results_remaining'],
+                        start_at_match_id)
 
         counter=counter+1
 
@@ -424,6 +437,7 @@ def main():
         MATCH_IDS[row[0]]=row[1]
 
     counter=1
+
     for hero in heroes:
         log.info("Hero: %s %d/%d Skill: %d",
                     meta.HERO_DICT[hero],

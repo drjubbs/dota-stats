@@ -1,15 +1,20 @@
 # Summary
 
-This program uses the Dota 2 REST API (see https://steamwebapi.azurewebsites.net/ for "better documentation, although much is not implemented") to fetch match information by skill level and hero, storing results in a configured MariaDB instance. The scripts are designed to be run in the background using e.g. `crontab` to continuously harvest match data.
+This program uses the Dota 2 REST API to fetch match information by skill level and hero, storing results in a configured MariaDB instance. The scripts are designed to be run in the background using e.g. `crontab` to continuously harvest match data.
 
-The project also includes several analysis scripts, which use a variety of a summary statistics and machine learning techniques to extract insight from the data.
+The project also includes several analysis scripts, which use a variety of a summary statistics and machine learning techniques to extract insight from the data. Some of the files are Jupyter Notebooks, stored as markdown. Since Jupyter Notebooks are difficult to `diff`, the `jupytext` extension should be used to run these notebooks and keep the markdown synced.
 
 Overview of the key files:
 - `fetch.py` runs in background fetching new data. It takes command line arguments for which hero and skill level to fetch. This is usually setup to run in the background using a crontab with a lock.
 - `fetch_summary.py` can be run to update the summary statistics in the `fetch_summary` table. This is used to track job health.
+- `meta.py` Meta-data contain enums and other contextual information for interpreting API results.
+- `ml_encoding.py` Utility functions which encode hero and hero pairing information for machine learning. Used to flatten and unflatten feature sets as needed.
+- `health_dashboard.md` Notebook which displays tables and graphs showing the results of the fetch jobs by hour and day.
+- `hero_overall_winrate.md` Notebook showing basic win rate plotting using descriptive statistics.
+- `gen_lane_prior.py` no longer actively used but perhaps useful, this script uses lane percentage information from http://dotabuff.com and some manually mask to provide a probability distribution for which farm position each hero should occupy. For a given match, you can then take the full time composition and calculate a "maximum likelihood" estimate to get farm priority. Not perfect, but it does allow some calculation of win percentage based on farm position.
+- `icons.py` Download most recent minimap icons. Icons might be useful to clean up visualizations.
 - `compact_db.py` earlier versions of the code using SQLite3 files instead of a MariaDB backend, this scripts compacts those files into a unique record set and transfers into MariaDB.
-- 
-
+- `run_test.py` Unit testing
 
 # Setup
 
@@ -85,33 +90,22 @@ All of this can then be setup to run on a regular basis using a user crontab (`c
 
 
 # TODO
+- Think about how to balance coefficients in logistic regression when 2nd order effects are include (i.e. shift weight on coefficients from hero-hero interactions onto base hero). Perhaps fit the model in two stages, with the hero/hero interactions on the residuals.
 
-- Check health of newest dev code (9/3/2020), record count by skill level in bar graph (in overall winrate notebook)
-- Clean-up/linting stopped at fetch
-- Increase number of threads from 8 to 16 to see if we can fetch more data?
-  - Moved to urllib3, see if this resolves protocol errors I was seeing before.
-- Use new MariaDB database to compare pre- and post-patch winrrates.
-- Migrate `fetch.py` over to using MariaDB
-  - Needs to load initial dictionary of known matches on started (at least within a reasonable data range)
-  - Table/user/database/etc... needs to be setup in environment to allow for development testing
-- Check that the new logic excluding previously fetched matches is working... search for "matches for processing" in logs toward the end...
-- In `fetch/process_match` see if exceptions are causing a hard stop (they should??)
-- Profile/optimize `fetch.py` so that all high skill level games can be captured. Histogram of match times should not have any missing data.
-- Update virtual environment and `requirementstxt`.
-- Optimize number of matches being processed so that an entire day's worth at a single skill level can be captured. This is likely a combination of code optimization, reduced sleep timers, and only selecting matches within a range based on an initial scan.
-- `fetch.py` crashes when a non-unique primary key is given (e.g. the match already  exists in the database.)
-- Split out the database merge option into a seperate workflow.
-- Move databases and logfiles to a separate directory which will
-  be created if it doesn't exist.
-- Check log level in `fetch.py` so that INFO can be turned off and
-  logs contain more helpful error information.
-- Finish re-ranking of position logic in `process.py` to assign hero
-  positions based on based likelihood. Used to calculate win probably 
-  by farm position summary.
-- Unit testing for `process.py`
-- New mode: implement MatchID vs. time model to sample matches randomly vs. 
-  going in hero order, this way popularity is capturely appropriately.
-- Additional testing of code with summoned units which can have items (e.g. 
-  Lone Druid)
-- Make sure filtering on fetch is accurate and what is desired.
+- How to publish results in a meaningful way on a site like reddit?
 
+- In logs, look for `num_results (try` . How often is this failing? It appears Valve's API often returns no records, perhaps due to some error with a load balancer?
+
+- In logs get a count of URLError, HTTPError, etc... and adjust number of threads accordingly.
+
+- Clean-up/linting of all code.
+
+- Audit log level in `fetch.py` so that INFO can be turned off and logs are smaller and contain more helpful error information.
+
+- Add win rate by position based on maximum likelihood to the `hero_overall_winrrate` workbook.
+
+- Consider adding a second mode to `fetch` where match IDs are randomly sampled over a time horizon vs. using the (broken) GetMatchHistory endpoint.
+
+- Recheck filtering on fetch that it is accurate and what is desired.
+
+  
