@@ -23,7 +23,9 @@ import os
 import pandas as pd
 import datetime as dt
 import pytz
-import plotly.express as px
+import json
+import plotly
+import plotly.graph_objs as go
 import pandas as pd
 ```
 
@@ -37,7 +39,12 @@ c=conn.cursor()
 ```
 
 ```python
-c.execute("select date_hour_skill, rec_count from fetch_summary")
+begin=int((dt.datetime.utcnow()-dt.timedelta(days=3)).timestamp())
+begin=str(begin)+"_0"
+```
+
+```python
+c.execute("select date_hour_skill, rec_count from fetch_summary where date_hour_skill>='{}'".format(begin))
 rows=c.fetchall()
 
 # Split out times and localize to my server timezone (East Coast US)
@@ -66,11 +73,17 @@ for idx, row in df_summary.iterrows():
 ```
 
 ```python
-# Melt/unpivot for format that plotly is expected for a stacked bar
-df_summary['date_hour']=df_summary.index
-df_melt=df_summary.melt(id_vars='date_hour',value_vars=['normal','high','very_high'])
-df_melt.columns=['date_hour','skill','count']
-px.bar(df_melt, x='date_hour', y='count', color='skill')
+fig = go.Figure(data=[
+    go.Bar(name='Normal', x=df_summary.index.values, y=df_summary['normal']),
+    go.Bar(name='High', x=df_summary.index.values, y=df_summary['high']),
+    go.Bar(name='Very High', x=df_summary.index.values, y=df_summary['very_high']),
+])
+record_count_plot=json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+```
+
+```python
+fig.update_layout(barmode='stack')
+fig.show()
 ```
 
 ```python

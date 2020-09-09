@@ -248,6 +248,8 @@ def fetch_match(match_id,skill):
     url += "GetMatchDetails/V001/?key={0}&match_id={1}"
     match=fetch_url(url.format(os.environ['STEAM_KEY'],match_id))
     match['api_skill']=skill
+    if not 'start_time' in match.keys():
+        raise ValueError("{} missing start time??".format(match_id))
 
     return match
 

@@ -64,6 +64,7 @@ For each environment, I generally create a file `env.sh` which sets the appropri
 	export DOTA_PASSWORD=password1
 	export DOTA_HOSTNAME=192.168.1.100
 	export DOTA_DATABASE=dota_prod
+	export FLASK_APP="server.py"
 	
 	source ./env/bin/activate
 
