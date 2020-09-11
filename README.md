@@ -64,6 +64,7 @@ For each environment, I generally create a file `env.sh` which sets the appropri
 	export DOTA_PASSWORD=password1
 	export DOTA_HOSTNAME=192.168.1.100
 	export DOTA_DATABASE=dota_prod
+	export FLASK_APP="server.py"
 	
 	source ./env/bin/activate
 
@@ -90,6 +91,8 @@ All of this can then be setup to run on a regular basis using a user crontab (`c
 
 
 # TODO
+- Check /errors for malformed responses I continue be getting from the API
+
 - Think about how to balance coefficients in logistic regression when 2nd order effects are include (i.e. shift weight on coefficients from hero-hero interactions onto base hero). Perhaps fit the model in two stages, with the hero/hero interactions on the residuals.
 
 - How to publish results in a meaningful way on a site like reddit?

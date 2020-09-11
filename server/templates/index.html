@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.6/d3.min.js"></script>
+<title>Huskarmetrics: DOTA2 Data Analytics by a Low MMR Hack</title>
+</head>
+  <div class="jumbotron p-4 p-md-5 text-white rounded bg-dark">
+    <div class="col-md-6 px-0">
+      <h1 class="display-4 font-italic">Huskarmetrics</h1>
+      <p class="lead my-3">A low MMR player's take on DOTA2 analytics.</p>
+    </div>
+  </div>
+<body>
+<div class="container">
+<h2>Overall Service Health</h2>
+
+<div class="chart" id="bargraph">
+    <script>
+        var graphs = {{record_count_plot | safe}};
+        Plotly.plot('bargraph',graphs,{});
+    </script>
+</div>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th scope="col">Date/Hour</th>
+      <th scope="col">Normal</th>
+      <th scope="col">High</th>
+      <th scope="col">Very High</th>
+    </tr>
+  </thead>
+{% for row in rows %}
+    <tr>
+	    <td>{{ row[0] }}</td>
+	    <td>{{ row[1] }}</td>
+	    <td>{{ row[2] }}</td>
+	    <td>{{ row[3] }}</td>
+    </tr>
+{% endfor %}
+</table>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js" integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN" crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js" integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV" crossorigin="anonymous"></script>
+</body>
+</html>
