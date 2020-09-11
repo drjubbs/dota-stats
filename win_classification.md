@@ -13,17 +13,44 @@ jupyter:
     name: python3
 ---
 
-## Win Classification
+## Win Classification: Machine Learning on Hero Selection
 
 Use match data and several machine learning models to try and classify the winner based on hero selection 
-as well as hero/enemy hero pair interactions (i.e. basic counters).
+as well as hero/enemy hero pair interactions (i.e. enemy team counters/weaknesses).
 
-**Note**: `ml_encode.py` must be prior to this script to generate cached sparse encodings. See that file for 
-a description of the encoding methodology
+## First order effects
+
+Encode match data for classifiers to determine probability of a radiant win. It's tempting to write a linear logistic regression model like this:
+
+`log(p/(1-p)) = c0 + x1*c1 + x2*c2 + x3*c3 + ... `
+
+where `c0` is the intercept and represents the contribution from being on radiant, `x1` .. `xn` are indicator variables, 
+where `1` indicates the hero was selected on radiant, and `-1` indicates the hero was selected on dire. The issue here 
+is that the interpretation of the coefficients becomes difficult. If `c1` is high, does that mean a high win rate for 
+radiant or a high loss rate for dire? This assumes that each hero has symmetric effects, radiant vs. dire, which is
+not in general true.
+
+Instead we will break each match into two vectors `x` and `y` (radiant and dire) and use only `{0,1}` indicator variables. 
+For logistic classificaiton:
+
+`log(p/(1-p)) = x1*b1 + x2*b2 + x3*b3 + ... + y1*c1 + y2*c2 + y3*c3 + ...`
+
+where `x_n=1` denotes hero was present on radiant, and `y_n=-1` denotes the hero was present on dire. The negation is used so  that a positive coefficient on a dire term means the hero was more likely a win (i.e. the sign conventions are consistent radiant vs. dire when we interpret coefficients).
+
+We will call this matrix `X1`, which has shape `(num_matches, 2*num_heroes)`, which encodes first order/single hero features.
+
+## Second order effects
+
+Here we expand the descriptor to include hero/other team hero interactions ("2nd order"). The benefit of doing this explicitly is that coefficients of hero pairings will be interpretable using simple logistic regression. Inherently non-linear models (e.g. random forests, neural networks) don't need these features explicitly.
+
+For each match, we define an interaction matrix `A_ij`, where `i` and `j` indicate a hero. Additionally, we flip indicies to ensure j>i to keep the matrix upper triangular and the feature size as small as possible. If `A_ij` = 1, it indicates that hero `i` was on radiant, if `A_ij` = -1 hero `i` was on dire. Prior to regression we'll unravel or flatten this matrix into a vector.
+
+After regression we reconstruct the matrix, mirror about the diagonal, and flip signs on the mirrored terms, so that the "row" of the matrix (e.g. the "Broodmother") row shows the correct direction of win/loss for radiant vs. each column hero.
 
 ```python
 %load_ext autoreload
 %autoreload 2
+import datetime as dt
 import copy
 import plotly.express as px
 import pandas as pd
@@ -41,37 +68,37 @@ import ml_encoding
 ```
 
 ```python
-y=sparse.load_npz("y.npz").toarray().transpose()
-X1=sparse.load_npz("X1.npz")
-X2=sparse.load_npz("X2.npz")
-X3=sparse.load_npz("X3.npz")
+y, X1, X2, X3 = ml_encoding.create_features(
+                        begin=dt.datetime(2020,9,7),
+                        end=dt.datetime(2020,9,7,4,0),
+                        skill=1,)
 
 print("Large matrix size: {}".format(X3.shape))
 ```
+
+We'll try several models, a dummy model (which should just predict a radiant win), a random forest model (which has a tendancy to overfit, so consider this an upper bound on how much information is encoded in hero selection), a first order logistic regression, and a GradientBoostingClassifier.
 
 ```python
 models={
     "Dummy" : 
         (DummyClassifier(strategy="constant"),
          { 'constant' : [0,1] }  ),
-    #"RandomForest" :
-    #    (           
-    #      RandomForestClassifier(n_estimators=100,                                  
-    #                             class_weight='balanced_subsample',
-    #                             bootstrap=False), # Turn off external CV
-    #     { 'max_depth' : [5,10,15,25,35] }
-    #    ),
+    "RandomForest" :
+        (           
+          RandomForestClassifier(n_estimators=1000,                                                                   
+                                 bootstrap=False), # Turn off external CV
+         { 'max_depth' : [1,2,3,4,5,10] }
+        ),
     "Logistic_Regression" :
         (
-            LogisticRegression(fit_intercept=False,class_weight='balanced_subsample'),
-            { 'C' : [1000, 100, 10, 1, 0.1, 0.01, 0.001] }
+            LogisticRegression(fit_intercept=False),
+            { 'C' : [1, 0.1, 0.01, 0.001] }
         ),
     "GradientBoostingClassifier" :
         (
             GradientBoostingClassifier(verbose=2),
-            {
-                "n_estimators" : [1,10,100],
-                "max_depth" : [3,4,5],
+            {                
+                "max_depth" : [1,2,3,4,5],
             }
         ),    
 }
