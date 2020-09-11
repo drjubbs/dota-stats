@@ -248,8 +248,14 @@ def fetch_match(match_id,skill):
     url += "GetMatchDetails/V001/?key={0}&match_id={1}"
     match=fetch_url(url.format(os.environ['STEAM_KEY'],match_id))
     match['api_skill']=skill
+
+    # If something went wrong, log to file and return no match
     if not 'start_time' in match.keys():
-        raise ValueError("{} missing start time??".format(match_id))
+        if not os.path.exists('error'):
+            os.makedirs('error')
+        with open("./error/{}.json".format(match_id), "w") as f:
+            f.write(json.dumps(match))
+        raise APIException("Bad match JSON {}".format(match_id))
 
     return match
 

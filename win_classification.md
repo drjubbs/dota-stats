@@ -163,10 +163,6 @@ results.columns=['dire','radiant']+list(meta.HERO_DICT.values())
 ```
 
 ```python
-results.to_csv("results.csv")
-```
-
-```python
 results
 ```
 

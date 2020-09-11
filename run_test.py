@@ -16,21 +16,19 @@ class TestDumpBug(unittest.TestCase):
     #    python run_test.py TestDumpBug
     #
     def test_fetch_debug(self):
-        match="5599868955"
+        match="5609573360"
         m=fetch.fetch_match(match,0)
         with open("./testing/{}.json".format(match), "w") as f:
             f.write(json.dumps(m))
         pm=fetch.parse_match(m)
 """
 
-class TestFramework(unittest.TestCase):
-    def test_encoding(self):
-        for hl in ([62,63,64,65,112],
-                   [1,2,3,4,5],
-                    [101,69,11,13,1]):
-            z=util.encode_heroes(hl)
-            self.assertEqual(sorted(hl),util.decode_heroes(z[0],z[1]))
-
+class TestFetch(unittest.TestCase):
+    def test_bad_match_id(self):
+        with self.assertRaises(fetch.APIException) as context:
+            m=fetch.fetch_match(111,1)
+        self.assertTrue(context.exception.__str__()=='Bad match JSON 111')
+       
     def test_bot_detection(self):
         with open("./testing/bots.json") as f:
             match=json.loads(f.read())
