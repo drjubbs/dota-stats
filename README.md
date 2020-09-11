@@ -7,14 +7,16 @@ The project also includes several analysis scripts, which use a variety of a sum
 Overview of the key files:
 - `fetch.py` runs in background fetching new data. It takes command line arguments for which hero and skill level to fetch. This is usually setup to run in the background using a crontab with a lock.
 - `fetch_summary.py` can be run to update the summary statistics in the `fetch_summary` table. This is used to track job health.
+- `fetch_win_rate.py` populates the summary table to show a rolling horizon win rate chart at various skill levls.
 - `meta.py` Meta-data contain enums and other contextual information for interpreting API results.
 - `ml_encoding.py` Utility functions which encode hero and hero pairing information for machine learning. Used to flatten and unflatten feature sets as needed.
-- `health_dashboard.md` Notebook which displays tables and graphs showing the results of the fetch jobs by hour and day.
 - `hero_overall_winrate.md` Notebook showing basic win rate plotting using descriptive statistics.
 - `gen_lane_prior.py` no longer actively used but perhaps useful, this script uses lane percentage information from http://dotabuff.com and some manually mask to provide a probability distribution for which farm position each hero should occupy. For a given match, you can then take the full time composition and calculate a "maximum likelihood" estimate to get farm priority. Not perfect, but it does allow some calculation of win percentage based on farm position.
 - `icons.py` Download most recent minimap icons. Icons might be useful to clean up visualizations.
 - `compact_db.py` earlier versions of the code using SQLite3 files instead of a MariaDB backend, this scripts compacts those files into a unique record set and transfers into MariaDB.
 - `run_test.py` Unit testing
+
+`/server/` info coming soon...
 
 # Setup
 
@@ -52,7 +54,9 @@ CREATE TABLE fetch_summary (date_hour BIGINT PRIMARY KEY,\
 
 CREATE TABLE fetch_history (match_id BIGINT PRIMARY KEY,\
                             start_time BIGINT) ENGINE='MyISAM';
-                         
+
+CREATE TABLE fetch_win_rate (hero_skill CHAR(128) PRIMARY KEY, skill TINYINT, hero CHAR(128), time_range CHAR(128), radiant_win INT, radiant_total INT, radiant_win_pct FLOAT, dire_win INT, dire_total INT, dire_win_pct FLOAT, win INT, total INT, win_pct FLOAT);
+
 CREATE USER 'dota_prod'@'192.168.%.%' IDENTIFIED BY 'password1';
 GRANT ALL PRIVILEGES ON dota_prod.* TO 'dota_prod'@'192.168.%.%';
 ```
@@ -91,7 +95,13 @@ All of this can then be setup to run on a regular basis using a user crontab (`c
 
 
 # TODO
-- Check /errors for malformed responses I continue be getting from the API
+- Check logs and /errors for malformed responses I continue be getting from the API
+
+- Make sure `fetch_win_rate.py` is updating properly in terms of date ranges
+
+- Move win rate visualizations from jupyter into server.
+
+- Replace other instances of "INSERT INTO .... DUPLICATE KEY" with "REPLACE INTO"
 
 - Think about how to balance coefficients in logistic regression when 2nd order effects are include (i.e. shift weight on coefficients from hero-hero interactions onto base hero). Perhaps fit the model in two stages, with the hero/hero interactions on the residuals.
 
