@@ -18,7 +18,7 @@ Overview of the key files:
 
 `/server/` info coming soon...
 
-# Setup
+# Setup: Backend
 
 After cloning the repository, it is suggested that you setup a virtual environment and install the required python packages:
 
@@ -94,7 +94,49 @@ All of this can then be setup to run on a regular basis using a user crontab (`c
 
 
 
+# Setup: Web Server
+
+## Development
+
+## Production Setup
+
+`sudo apt-get install nginx`
+
+Make the following edits to `/etc/nginx/sites-available/default`
+
+```
+        location / {
+                # First attempt to serve request as file, then
+                # as directory, then fall back to displaying a 404.
+                #try_files $uri $uri/ =404;
+                proxy_pass http://127.0.0.1:8000;
+        }
+```
+
+Install supervisor:
+
+`sudo apt-get install supervisor`
+
+Create a script to startup the server:
+
+```
+#!/bin/bash
+cd dota-prd
+source env.sh
+cd server
+gunicorn -w 4 server:app
+```
+
+Edit the supervisor configuration `sudo vim /etc/supervisor/supervisord.conf`
+
+```
+
+```
+
+
+
 # TODO
+
 - Check logs and /errors for malformed responses I continue be getting from the API
 
 - Make sure `fetch_win_rate.py` is updating properly in terms of date ranges

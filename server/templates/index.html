@@ -15,9 +15,44 @@
     </div>
   </div>
 <body>
-<div class="container">
-<h2>Overall Service Health</h2>
+<div class="container-fluid">
 
+
+<h2>Radiant vs. Dire</h2>
+
+<div class="container w-25">
+<table class="table">
+  <thead>
+    <tr>
+	    <th scope="col">Skill</th>
+	    <th scope="col">Radiant Win %</th>
+    </tr>
+  </thead>
+	
+  <tr>
+    <td>Normal</td>
+     <td>{{ "%7.2f" | format(radiant_vs_dire[0])}}</td>
+  </tr>
+  <tr>
+    <td>High</td>
+    <td>{{ "%7.2f" | format(radiant_vs_dire[1])}}</td>
+  </tr>
+  <tr>
+    <td>Very High</td>
+    <td>{{ "%7.2f" | format(radiant_vs_dire[2])}}</td>
+  </tr>
+</table>
+</div>
+ 
+<h2>Win Rate vs. Pick Rate</h2>
+<div class="chart" id="normal_skill">
+    <script>
+	var graphs ={{ win_rate_figs | safe}};
+	Plotly.plot('normal_skill',graphs,{});
+    </script>
+</div>
+
+<h2>Overall Service Health</h2>
 <div class="chart" id="bargraph">
     <script>
         var graphs = {{record_count_plot | safe}};
