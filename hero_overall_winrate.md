@@ -45,7 +45,7 @@ conn = mariadb.connect(
 ```
 
 ```python
-df_sql=pd.read_sql("select * from summary_win_rate",conn)
+df_sql=pd.read_sql("select * from fetch_win_rate",conn)
 ```
 
 ```python
@@ -79,8 +79,12 @@ for skill in list(set(df_sql['skill'])):
 ```
 
 ```python
+json.dumps(fig,cl
+```
+
+```python
 # Calculate radiant vs. dire offset
-offset=200*(df_hero.sum()['dire_win']-df_hero.sum()['radiant_win'])/df_hero.sum()['total']
+offset=200*(df_sql.sum()['dire_win']-df_sql.sum()['radiant_win'])/df_sql.sum()['total']
 print("Radiant vs. Dire delta%: {}".format(offset))
 ```
 
