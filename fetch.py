@@ -246,7 +246,14 @@ def fetch_match(match_id,skill):
 
     url = "https://api.steampowered.com/IDOTA2Match_570/"
     url += "GetMatchDetails/V001/?key={0}&match_id={1}"
-    match=fetch_url(url.format(os.environ['STEAM_KEY'],match_id))
+    
+    for i in range(10):
+        match=fetch_url(url.format(os.environ['STEAM_KEY'],match_id))
+        if 'start_time' in match.keys():
+            break
+        log.error("Match ID not found: %s", str(match_id))
+        time.sleep(1)
+
     match['api_skill']=skill
 
     # If something went wrong, log to file and return no match
@@ -268,13 +275,13 @@ def process_match(hero, skill, match_id):
         match=fetch_match(match_id, skill)
     except APIException as e_msg:
         log.error("{0:20.20} {1}". format("API Error", str(e_msg)))
-
+        return None
     try:
         summary=parse_match(match)
         log.info("{0:20.20} {1}". format("Success", txt))
         return summary
     except ParseException as e_msg:
-        log.info("{0:20.20} {1}". format(str(e_msg), txt))
+        log.error("{0:20.20} {1}". format(str(e_msg), txt))
         return None
     return None
 
@@ -340,7 +347,7 @@ def fetch_matches(hero, skill, conn):
         # the API returns no matches, so we'll re-try a few times
         # if we expect more matches.
         retry=0
-        while retry<10:
+        while retry<20:
             resp=fetch_url(url.format(
                 os.environ["STEAM_KEY"],
                 skill,
@@ -348,7 +355,7 @@ def fetch_matches(hero, skill, conn):
                 hero,
                 ))
 
-            log.info("num_results (try %d) %d", retry, resp['num_results'])
+            log.error("num_results (try %d) %d", retry, resp['num_results'])
 
             # If we found results, break out of loop
             if resp['num_results']>0:
