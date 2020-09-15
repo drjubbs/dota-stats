@@ -75,22 +75,26 @@ For each environment, I generally create a file `env.sh` which sets the appropri
 
 Prior to doing any work, `source` the file above (note that running the script will not work as the environmental variables will not be persistant).
 
-Next create a basic shell script (`fetch_prod.sh`) which activates the virtual environment and runs with required options. This script will be run from a user based crontab. 
+Next create a basic shell scripts (`fetch.sh`, `fetch_summary.sh`, `fetch_win_rate.sh`) which activates the virtual environment and runs with required options. This script will be run from a user based crontab and will look something like this:
 
 ```
 #!/bin/bash
-cd dota-prod
+cd dota-stats
 source env.sh
 mkdir -p log
 
-export DATESTR=`date +"%Y%m%d%H"`
-python fetch.py all 1 &> log/matches_1_$DATESTR.log
+export DATESTR=`date +"%Y%m%d_%H%M"`
+python fetch.py all 2 &> log/fetch_2_$DATESTR.log
+python fetch.py all 3 &> log/fetch_3_$DATESTR.log
+python fetch.py all 1 &> log/fetch_1_$DATESTR.log
 ```
 
 All of this can then be setup to run on a regular basis using a user crontab (`crontab -e`). The use of `flock` is suggested to ensure that multiple jobs are not running at the same time. `flock` accounts for a lot of the odd bookkeeping.
 
 ```
-05 */2 * * * /usr/bin/flock -n /tmp/fetch_prod.lockfile bash -l -c '/home/pi/fetch_prod.sh'
+*/15 * * * * /usr/bin/flock -n /tmp/fetch_prd.lockfile bash -l -c '/home/dota/fetch.sh'
+*/20 * * * * /usr/bin/flock -n /tmp/fetch_summary_prd.lockfile bash -l -c '/home/dota/fetch_summary.sh'
+*/30 * * * * /usr/bin/flock -n /tmp/fetch_win_rate_prd.lockfile bash -l -c '/home/dota/fetch_win_rate.sh'
 ```
 
 
@@ -99,7 +103,11 @@ All of this can then be setup to run on a regular basis using a user crontab (`c
 
 ## Development
 
+<<<<<<< HEAD
 Set variable `FLASK_APP` to `server.py'` and use `flask run`. 
+=======
+For development of the web server, use the inbuild Flask server (`flask run`) and tunneling over SSH. The `FLASK_APP` environmental variable needs to be properly set.
+>>>>>>> 5c05193bc40471dee4cb3ca8de90aa44f92e44e6
 
 ## Production Setup
 
@@ -126,25 +134,25 @@ Create a script to startup the server:
 
 ```
 #!/bin/bash
-cd dota-prd
+cd dota-stats
 source env.sh
 cd server
 gunicorn -w 4 server:app
 ```
 
-Edit the supervisor configuration `sudo vim /etc/supervisor/supervisord.conf`. Note how we don't want to use the default `pi` user as this has elevated privileges:
+Edit the supervisor configuration `sudo vim /etc/supervisor/supervisord.conf` and add the following section. **Note: It is critical for security that this is run from a non-privileged account.**
 
 ```
 [program:gunicorn]
-command=/home/dota/start_server_dev.sh
+command=/home/dota/start_server.sh
 directory=/home/dota
-user=pi
+user=dota
 autostart=true
 autorestart=true
 redirect_stderr=true
 ```
 
-
+Restart the supervisor service: `sudo systemctl restart supervisor`. Now requests to port 80 (at least the root page) should be re-directed to `gunicorn` which is running on port 8000. This should all survive a reboot and is worth testing.
 
 # TODO
 
