@@ -103,11 +103,7 @@ All of this can then be setup to run on a regular basis using a user crontab (`c
 
 ## Development
 
-<<<<<<< HEAD
-Set variable `FLASK_APP` to `server.py'` and use `flask run`. 
-=======
-For development of the web server, use the inbuild Flask server (`flask run`) and tunneling over SSH. The `FLASK_APP` environmental variable needs to be properly set.
->>>>>>> 5c05193bc40471dee4cb3ca8de90aa44f92e44e6
+Set variable `FLASK_APP` to `server.py'` and use `flask run`.  For development of the web server, use the inbuild Flask server (`flask run`) and tunneling over SSH. The `FLASK_APP` environmental variable needs to be properly set.
 
 ## Production Setup
 
