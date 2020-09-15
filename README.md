@@ -48,8 +48,7 @@ CREATE TABLE dota_matches (match_id BIGINT PRIMARY KEY, \
                          gold_spent VARCHAR(1024))
                          ENGINE = 'MyISAM';
 
-CREATE TABLE fetch_summary (date_hour BIGINT PRIMARY KEY,\
-                            skill INT,\
+CREATE TABLE fetch_summary (date_hour_skill CHAR(32) PRIMARY KEY,\
                             rec_count INT) ENGINE='MyISAM';
 
 CREATE TABLE fetch_history (match_id BIGINT PRIMARY KEY,\
@@ -58,7 +57,9 @@ CREATE TABLE fetch_history (match_id BIGINT PRIMARY KEY,\
 CREATE TABLE fetch_win_rate (hero_skill CHAR(128) PRIMARY KEY, skill TINYINT, hero CHAR(128), time_range CHAR(128), radiant_win INT, radiant_total INT, radiant_win_pct FLOAT, dire_win INT, dire_total INT, dire_win_pct FLOAT, win INT, total INT, win_pct FLOAT);
 
 CREATE USER 'dota_prod'@'192.168.%.%' IDENTIFIED BY 'password1';
+CREATE USER 'dota_prod'@'localhost' IDENTIFIED BY 'password1';
 GRANT ALL PRIVILEGES ON dota_prod.* TO 'dota_prod'@'192.168.%.%';
+GRANT ALL PRIVILEGES ON dota_prod.* TO 'dota_prod'@'localhost';
 ```
 
 For each environment, I generally create a file `env.sh` which sets the appropriate environmental variables and boots up the python environment (`env.sh`):
@@ -98,11 +99,15 @@ All of this can then be setup to run on a regular basis using a user crontab (`c
 
 ## Development
 
+Set variable `FLASK_APP` to `server.py'` and use `flask run`. 
+
 ## Production Setup
+
+This setup is more complex, we'll going to using Nginx as the server, setup to reverse proxy `gunicorn`. This way we can better handle spam requests, SSL (if desired), etc. In this setup, it is very important that the `gunicorn` process is running from a non-privileged account. Instructions here are for a Raspberry Pi, but should be similar on host other platforms.
 
 `sudo apt-get install nginx`
 
-Make the following edits to `/etc/nginx/sites-available/default`
+Make the following edits to `/etc/nginx/sites-available/default` to setup the reverse proxy. `systemd` will take care of running this process, you might need to reset it.
 
 ```
         location / {
@@ -113,7 +118,7 @@ Make the following edits to `/etc/nginx/sites-available/default`
         }
 ```
 
-Install supervisor:
+We'll keep `gunicorn` running using `supervisor`:
 
 `sudo apt-get install supervisor`
 
@@ -127,10 +132,16 @@ cd server
 gunicorn -w 4 server:app
 ```
 
-Edit the supervisor configuration `sudo vim /etc/supervisor/supervisord.conf`
+Edit the supervisor configuration `sudo vim /etc/supervisor/supervisord.conf`. Note how we don't want to use the default `pi` user as this has elevated privileges:
 
 ```
-
+[program:gunicorn]
+command=/home/dota/start_server_dev.sh
+directory=/home/dota
+user=pi
+autostart=true
+autorestart=true
+redirect_stderr=true
 ```
 
 
