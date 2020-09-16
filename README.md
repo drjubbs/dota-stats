@@ -20,15 +20,30 @@ Overview of the key files:
 
 # Setup: Backend
 
-After cloning the repository, it is suggested that you setup a virtual environment and install the required python packages:
+## Maria DB Setup
 
-	cd dota_stats
-	python3 -m venv env
-	source env/bin/activate
-	pip install --upgrade pipe
-	pip install -i requirements.txt
+Proceed to follow instructions to setup MariaDB on your platform.   You may need to allow remote access if your analysis machine is different from your database machine, this usually involves setting the `bind-address` in MariaDB to `0.0.0.0` or commenting out that line. Also, special consideration must be given if running in a limited virtual machine. You might need to enable swap:
 
-Proceed to follow instructions to setup MariaDB on your platform.   You may need to allow remote access if your analysis machine is different from your database, this usually involves setting the `bind-address` in MariaDB to `0.0.0.0` or commenting out that line.
+```sudo sysctl -w vm.swappiness=1```
+
+and reduce the overall footprint of MariaDB.
+
+```
+[mysqld]
+performance_schema = off
+key_buffer_size = 16M
+query_cache_size = 2M
+query-cache-limit = 1M
+tmp_table_size = 1M
+innodb_buffer_pool_size = 1M
+innodb_log_buffer_size = 256K
+max_connections = 10
+sort_buffer_size = 512M
+read_buffer_size = 256K
+read_rnd_buffer_size = 512K
+join_buffer_size = 128K
+thread_stack = 196K
+```
 
 Login as root substituting and run the following script, substituting in a strong password for `password1`. Note that using MyISAM (vs. InnoDB) as the engine on a Raspberry PI had a profound impact on performance, this may not be true on all platforms. 
 
@@ -62,6 +77,18 @@ GRANT ALL PRIVILEGES ON dota_prod.* TO 'dota_prod'@'192.168.%.%';
 GRANT ALL PRIVILEGES ON dota_prod.* TO 'dota_prod'@'localhost';
 ```
 
+
+
+## Python Setup
+
+After cloning the repository, it is suggested that you setup a virtual environment and install the required python packages:
+
+	cd dota_stats
+	python3 -m venv env
+	source env/bin/activate
+	pip install --upgrade pipe
+	pip install -i requirements.txt
+
 For each environment, I generally create a file `env.sh` which sets the appropriate environmental variables and boots up the python environment (`env.sh`):
 
 	export STEAM_KEY=1234567890....
@@ -69,11 +96,12 @@ For each environment, I generally create a file `env.sh` which sets the appropri
 	export DOTA_PASSWORD=password1
 	export DOTA_HOSTNAME=192.168.1.100
 	export DOTA_DATABASE=dota_prod
+	export DOTA_LOGGING=0
 	export FLASK_APP="server.py"
 	
 	source ./env/bin/activate
 
-Prior to doing any work, `source` the file above (note that running the script will not work as the environmental variables will not be persistant).
+Prior to doing any work, `source` the file above (note that running the script will not work as the environmental variables will not be persistant). If more verbose output is needed, set `DOTA_LOGGING` to be greater than zero.
 
 Next create a basic shell scripts (`fetch.sh`, `fetch_summary.sh`, `fetch_win_rate.sh`) which activates the virtual environment and runs with required options. This script will be run from a user based crontab and will look something like this:
 

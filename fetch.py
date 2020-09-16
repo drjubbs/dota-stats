@@ -66,7 +66,10 @@ PLAYER_FIELDS = [
 
 # Logging
 log=logging.getLogger("dota")
-log.setLevel(logging.DEBUG)
+if int(os.environ['DOTA_LOGGING'])==0:
+    log.setLevel(logging.INFO)
+else:
+    log.setLevel(logging.DEBUG)
 ch=logging.StreamHandler(sys.stdout)
 fmt=logging.Formatter(
         fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -278,10 +281,10 @@ def process_match(hero, skill, match_id):
         return None
     try:
         summary=parse_match(match)
-        log.info("{0:20.20} {1}". format("Success", txt))
+        log.debug("{0:20.20} {1}". format("Success", txt))
         return summary
     except ParseException as e_msg:
-        log.error("{0:20.20} {1}". format(str(e_msg), txt))
+        log.debug("{0:20.20} {1}". format(str(e_msg), txt))
         return None
     return None
 
@@ -291,7 +294,7 @@ def process_matches(match_ids, hero, skill, conn):
     to database.
     """
     cursor=conn.cursor()
-    log.info("%d matches for processing", len(match_ids))
+    log.debug("%d matches for processing", len(match_ids))
     match_ids=[m for m in match_ids if m not in MATCH_IDS.keys()]
     log.info("%d matches after removing duplicates.", len(match_ids))
 
@@ -394,7 +397,7 @@ def fetch_matches(hero, skill, conn):
 
         counter=counter+1
 
-    print("Matches per minute: {0}".format(60*counter/(time.time()-start)))
+    log.debug("Matches per minute: {0}".format(60*counter/(time.time()-start)))
 
 def usage():
     """Display usage information."""
@@ -442,7 +445,7 @@ def main():
     stmt="SELECT match_id, start_time "
     stmt+="FROM fetch_history WHERE start_time>={0} and start_time<={1};"
     stmt=stmt.format(start_time, end_time)
-    print(stmt)
+    log.info(stmt)
 
     cursor.execute(stmt)
     rows=cursor.fetchall()
