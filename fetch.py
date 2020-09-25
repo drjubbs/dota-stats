@@ -273,6 +273,7 @@ def process_match(hero, skill, match_id):
     """Process a single match, used by the multi-threading engine."""
 
     txt="match ID {0} hero {1:3} skill {2}".format(match_id, hero, skill)
+    log.info(txt)
 
     try:
         match=fetch_match(match_id, skill)
