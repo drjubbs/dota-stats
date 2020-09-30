@@ -89,7 +89,7 @@ def fetch_url(url):
     """Simple wait loop around fetching to deal with things like network
     outages, etc..."""
 
-    sleep_schedule=[0.25,1.0,2,10,30,60,300,500,1000,1800,1800,1800,1800,1800]
+    sleep_schedule=[0.25,1.0,2,10,30,60,300,500,1000,1000]
     for sleep in sleep_schedule:
         time.sleep(np.random.uniform(0.3*sleep,0.7*sleep))
         req=request.Request(url, headers={
@@ -273,7 +273,6 @@ def process_match(hero, skill, match_id):
     """Process a single match, used by the multi-threading engine."""
 
     txt="match ID {0} hero {1:3} skill {2}".format(match_id, hero, skill)
-    log.info(txt)
 
     try:
         match=fetch_match(match_id, skill)
@@ -306,9 +305,7 @@ def process_matches(match_ids, hero, skill, conn):
         f_p=partial(process_match,hero,skill)
         matches=[]
         with futures.ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
-            for match_id in match_ids:
-                matches.append(executor.submit(f_p, match_id))
-            matches=[m.result() for m in matches]
+            matches=executor.map(f_p, match_ids, timeout=3600)
 
     matches=[m for m in matches if m is not None]
     log.info("%d valid matches to write to database",len(matches))
