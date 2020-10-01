@@ -148,7 +148,7 @@ server {
         listen [::]:80 default_server;
         server_name server.com;
 
-		# Intercept Let's Encrypt handshake, this must occur on port 80
+	# Intercept Let's Encrypt handshake, this must occur on port 80
         location /.well-known {
             alias /var/www/letsencrypt/.well-known;
         }
@@ -165,7 +165,7 @@ This will redirect first to port 443 for TLS, and then locally to port 8000 whic
 
 ```
 #!/bin/bash
-cd dota-prd
+cd dota-stats
 source env.sh
 cd server
 gunicorn -w 1 --reload server:app
@@ -184,7 +184,7 @@ autorestart=true
 redirect_stderr=true
 ```
 
-
+Restart the supervisor service: `sudo systemctl restart supervisor`. Now requests to port 80 (at least the root page) should be re-directed to `gunicorn` which is running on port 8000. This should all survive a reboot and is worth testing.
 
 # TODO
 
