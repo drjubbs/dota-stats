@@ -3,6 +3,7 @@ import os
 import pandas as pd
 import datetime as dt
 import pytz
+from dateutil.tz import tzlocal
 import plotly.express as px
 import pandas as pd
 import plotly
@@ -81,8 +82,8 @@ def status():
 
     # Split out times and localize to my server timezone (East Coast US)
     mytz=pytz.timezone("US/Eastern")
-    times=[dt.datetime.fromtimestamp(int(t[0].split("_")[0])) for t in rows]
-    times=[mytz.localize(t).strftime("%Y-%m-%dT%H:00:00") for t in times]
+    times=[dt.datetime.fromtimestamp(int(t[0].split("_")[0]),tzlocal()) for t in rows]
+    times=[t.astimezone(mytz).strftime("%Y-%m-%dT%H:00:00%z") for t in times]
     # Get remaining fields
     skills=[int(t[0].split("_")[1]) for t in rows]
     rec_count=[t[1] for t in rows]
