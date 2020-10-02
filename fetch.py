@@ -17,7 +17,7 @@ import http.client
 import datetime as dt
 import numpy as np
 import mariadb
-import simplejson as json
+import ujson as json
 import meta
 
 #----------------------------------------------

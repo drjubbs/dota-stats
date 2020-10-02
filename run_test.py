@@ -5,6 +5,8 @@ import numpy as np
 import fetch
 import meta
 import ml_encoding
+import serialize
+import logging
 
 """
 class TestDumpBug(unittest.TestCase):
@@ -22,6 +24,29 @@ class TestDumpBug(unittest.TestCase):
             f.write(json.dumps(m))
         pm=fetch.parse_match(m)
 """
+
+class TestProtobuf(unittest.TestCase):
+    def test_serialization(self):
+        """
+        a1: Radiant heroes
+        a2: Dire heroes
+        a3: Items dictionary
+        a4: Gold Spent dictionary
+
+        """
+        a1='[41, 25, 51, 75, 60]'
+        a2='[30, 1, 22, 2, 50]'
+        a3='{"41": [135, 108, 172, 75, 63, 75, 212, 0, 38, 0], "75": [206, 36, 216, 63, 77, 188, 354, 0, 0, 0], "25": [100, 273, 259, 48, 77, 77, 331, 39, 237, 0], "60": [1, 36, 8, 73, 108, 50, 357, 17, 0, 0], "51": [98, 223, 36, 214, 0, 0, 356, 0, 0, 0], "22": [41, 29, 232, 77, 77, 77, 287, 216, 0, 0], "2": [127, 34, 11, 0, 214, 0, 71, 0, 0, 0], "30": [254, 0, 0, 0, 0, 0, 0, 0, 0, 0], "1": [63, 27, 27, 75, 145, 0, 239, 288, 0, 0], "50": [216, 0, 23, 180, 27, 0, 349, 0, 0, 0]}'
+        a4='{"41": 14180, "75": 6835, "25": 14470, "60": 13060, "51": 8630, "22": 5565, "2": 3985, "30": 5840, "1": 7710, "50": 3565}'
+
+        test_pb=serialize.protobuf_match_details(a1,a2,a3,a4)
+        b1,b2,b3,b4=serialize.unprotobuf_match_details(test_pb)
+
+        self.assertEqual(json.loads(a1), json.loads(b1))
+        self.assertEqual(json.loads(a2), json.loads(b2))
+        self.assertEqual(json.loads(a3), json.loads(b3))
+        self.assertEqual(json.loads(a4), json.loads(b4))
+
 
 class TestFetch(unittest.TestCase):
     def test_bad_match_id(self):
@@ -148,4 +173,5 @@ class TestMLEncoding(unittest.TestCase):
         self.assertTrue(np.all(a>=c))
 
 if __name__ == '__main__':
+    fetch.log.setLevel(logging.CRITICAL)
     unittest.main()
