@@ -290,7 +290,7 @@ def process_match(hero, skill, match_id):
     return None
 
 
-def process_matches(match_ids, hero, skill, conn):
+def process_matches(match_ids, hero, skill, conn, executor):
     """Loop over all match_ids, parsing JSON output and writing
     to database.
     """
@@ -304,9 +304,7 @@ def process_matches(match_ids, hero, skill, conn):
                     match_id in match_ids]
     else:
         f_p=partial(process_match,hero,skill)
-        matches=[]
-        with futures.ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
-            matches=executor.map(f_p, match_ids, timeout=3600)
+        matches=executor.map(f_p, match_ids, timeout=3600)
 
     matches=[m for m in matches if m is not None]
     log.info("%d valid matches to write to database",len(matches))
@@ -330,7 +328,7 @@ def process_matches(match_ids, hero, skill, conn):
     conn.commit()
 
 
-def fetch_matches(hero, skill, conn):
+def fetch_matches(hero, skill, conn, executor):
     """Gets list of matches by page. This is just the index, not the
     individual match results.
     """
@@ -368,7 +366,7 @@ def fetch_matches(hero, skill, conn):
 
         if resp['num_results']>0:
             match_ids=[t['match_id'] for t in resp['matches']]
-            process_matches(match_ids, hero, skill, conn)
+            process_matches(match_ids, hero, skill, conn, executor)
             start_at_match_id=min(match_ids)-1
 
         # Set dictionary for start time so we don't fetch multiple times,
@@ -405,6 +403,16 @@ def usage():
     print(txt)
     sys.exit(1)
 
+def get_database_connection():
+    conn = mariadb.connect(
+        user=os.environ['DOTA_USERNAME'],
+        password=os.environ['DOTA_PASSWORD'],
+        host=os.environ['DOTA_HOSTNAME'],
+        database=os.environ['DOTA_DATABASE'])
+
+    return conn
+
+
 def main():
     """Main entry point. """
     if len(sys.argv)<3:
@@ -426,12 +434,7 @@ def main():
     else:
         usage()
 
-    # Setup database
-    conn = mariadb.connect(
-        user=os.environ['DOTA_USERNAME'],
-        password=os.environ['DOTA_PASSWORD'],
-        host=os.environ['DOTA_HOSTNAME'],
-        database=os.environ['DOTA_DATABASE'])
+    conn=get_database_connection()
     cursor=conn.cursor()
 
     # Populate dictionary with matches we already have within
@@ -452,20 +455,27 @@ def main():
 
     for row in rows:
         MATCH_IDS[row[0]]=row[1]
+    conn.close()
 
+    # Main loop over heroes.
+    # Create the thread pool now to prevent constant creation
+    # and destruction of threads. Also, destroy database connection
+    # in between heroes just in case something hangs.
+    executor=futures.ThreadPoolExecutor(max_workers=NUM_THREADS)
     counter=1
 
     for hero in heroes:
+        conn=get_database_connection()
         log.info("Hero: %s %d/%d Skill: %d",
                     meta.HERO_DICT[hero],
                     counter,
                     len(heroes),
                     skill)
-        fetch_matches(hero,skill,conn)
+        fetch_matches(hero,skill,conn,executor)
         counter=counter+1
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+        conn.close()
 
 if __name__=="__main__":
     main()
