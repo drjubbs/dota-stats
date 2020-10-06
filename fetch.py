@@ -19,6 +19,7 @@ import numpy as np
 import mariadb
 import ujson as json
 import meta
+import serialize
 
 #----------------------------------------------
 # Globals
