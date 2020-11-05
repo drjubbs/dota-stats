@@ -180,7 +180,7 @@ Restart the supervisor service: `sudo systemctl restart supervisor`. Now request
 
 # TODO
 
-- Check logs and /errors for malformed responses I continue be getting from the API
+- Check logs and /errors for malformed responses I continue be getting from the API; check for "TimeoutError" in threading to see how often this is occuring.
 
 - Make sure `fetch_win_rate.py` is updating properly in terms of date ranges
 

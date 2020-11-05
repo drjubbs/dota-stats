@@ -74,27 +74,56 @@ def status():
     #-----------------------------------------------------------------
     # Record count health metrics
     #-----------------------------------------------------------------
-    # Limit window of record counts
-    begin=int((dt.datetime.utcnow()-dt.timedelta(days=3)).timestamp())
+
+    # Start with empty dataframe, by hour
+    DAYS=7
+    TIMEZONE=pytz.timezone("US/Eastern")
+    UTC=pytz.timezone("UTC")
+
+    utc_offset=TIMEZONE.utcoffset(dt.datetime.now())
+    utc_hour=int(utc_offset.total_seconds()/3600)
+ 
+    now=dt.datetime.utcnow().astimezone(TIMEZONE) 
+    now_hour=dt.datetime(now.year, now.month, now.day, now.hour, 0, 0)
+
+    times=[(now_hour-dt.timedelta(hours=i)).strftime("%Y-%m-%dT%H:00:00%z") for i in range(24*DAYS)]
+    times=["{0}{1:+03d}00".format(t,utc_hour) for t in times]
+
+    df_summary1=pd.DataFrame(index=times, data={
+                                            1 : [0]*len(times), 
+                                            2 : [0]*len(times), 
+                                            3 : [0]*len(times), 
+                                          })
+
+    # Fetch from database
+    begin=int((dt.datetime.utcnow()-dt.timedelta(days=DAYS)).timestamp())
     begin=str(begin)+"_0"
     c.execute("select date_hour_skill, rec_count from fetch_summary where date_hour_skill>='{}'".format(begin))
     rows=c.fetchall()
 
-    # Split out times and localize to my server timezone (East Coast US)
-    mytz=pytz.timezone("US/Eastern")
-    times=[dt.datetime.fromtimestamp(int(t[0].split("_")[0]),tzlocal()) for t in rows]
-    times=[t.astimezone(mytz).strftime("%Y-%m-%dT%H:00:00%z") for t in times]
+    # Split out times and localize to current timezone (East Coast US)
+    # Note that using pytz causes the timestamps to localize relative
+    # to the stated time and not current time. To avoid discontinuities
+    # we'll localize to current time.
+    times=[dt.datetime.utcfromtimestamp(int(t[0].split("_")[0])) for t in rows]
+    times=[t-utc_offset for t in times]
+    times=[t.strftime("%Y-%m-%dT%H:00:00") for t in times]
+    times=["{0}{1:+03d}00".format(t,utc_hour) for t in times]
+
     # Get remaining fields
     skills=[int(t[0].split("_")[1]) for t in rows]
     rec_count=[t[1] for t in rows]
 
     # Pivot for tablular view
-    df_summary=pd.DataFrame({
+    df_summary2=pd.DataFrame({
         'date_hour' : times,
         'skill' : skills,
         'count' : rec_count
         })
-    df_summary=df_summary.pivot(index='date_hour', columns='skill', values='count').fillna(0).astype('int32').sort_index(ascending=False)
+    df_summary2=df_summary2.pivot(index='date_hour', columns='skill', values='count').fillna(0).astype('int32').sort_index(ascending=False)
+    df_summary=df_summary1.add(df_summary2, fill_value=0)
+
+    # Rename columns
     df_summary=df_summary[[1,2,3]]
     df_summary.columns=['normal', 'high', 'very_high']
 
