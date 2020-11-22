@@ -47,7 +47,7 @@ def parse_records(rows):
     df_radiant_total=pd.DataFrame(summary['radiant_total'], columns=['hero'])
     df_radiant_total['radiant_total']=1
     df_radiant_total=df_radiant_total.groupby("hero").count()
-    df1=df_radiant_win.join(df_radiant_total)
+    df1=df_radiant_win.join(df_radiant_total, how='outer').fillna(0)
     df1['radiant_win_pct']=100.0*df1['radiant_win']/df1['radiant_total']
 
     # Dire Summary
@@ -57,10 +57,10 @@ def parse_records(rows):
     df_dire_total=pd.DataFrame(summary['dire_total'], columns=['hero'])
     df_dire_total['dire_total']=1
     df_dire_total=df_dire_total.groupby("hero").count()
-    df2=df_dire_win.join(df_dire_total)
+    df2=df_dire_win.join(df_dire_total, how='outer').fillna(0)
     df2['dire_win_pct']=100.0*df2['dire_win']/df2['dire_total']
 
-    df_hero=df1.join(df2)
+    df_hero=df1.join(df2, how='outer').fillna(0)
     df_hero['win']=df_hero['radiant_win']+df_hero['dire_win']
     df_hero['total']=df_hero['radiant_total']+df_hero['dire_total']
     df_hero['win_pct']=100.0*df_hero['win']/df_hero['total']

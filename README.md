@@ -23,6 +23,22 @@ Overview of the key files:
 
 Description of algorithms coming soon...
 
+## Backup
+
+Dumping the entire database can be slow and costly. To limit records, a  timestamp filter can be applied to `mysqldump`:
+
+```mysqldump --databases dota --tables dota_matches --where="start_time>1604592194" -u dota -p > dota_matches.sql
+mysqldump --databases dota --tables dota_matches --where="start_time>1604808513" -u dota -p | gzip > dota_matches.sql.gz
+```
+
+where `start_time` can be obtained from a Python shell to represent a few hours/days worth of data:
+
+```
+>>> from datetime import datetime, timedelta
+>>> int((datetime.now()-timedelta(hours=12)).timestamp())
+1604592194.271184
+```
+
 # Setup
 
 ### Python Virtual Environment
@@ -197,6 +213,7 @@ Restart the supervisor service: `sudo systemctl restart supervisor`. Now request
 
 - Overall
 
+  - Finish protobuf implementation (see "foo.sh" for errors)
   - Reversion requirements.txt to the newest distro (Ubuntu 20.04 LTS)
   - Replace other instances of "INSERT INTO .... DUPLICATE KEY" with "REPLACE INTO"
   - Think about how to balance coefficients in logistic regression when 2nd order effects are include (i.e. shift weight on coefficients from hero-hero interactions onto base hero). Perhaps fit the model in two stages, with the hero/hero interactions on the residuals.
@@ -205,6 +222,6 @@ Restart the supervisor service: `sudo systemctl restart supervisor`. Now request
   - Add win rate by position based on maximum likelihood to the `hero_overall_winrrate` workbook.
   - Consider adding a second mode to `fetch` where match IDs are randomly sampled over a time horizon vs. using the (broken) GetMatchHistory endpoint.
   - Recheck filtering on fetch that it is accurate and what is desired.
-  - Document fetch logic as well as algorithms being used
-
+- Document fetch logic as well as algorithms being used
+  
   
