@@ -25,7 +25,15 @@ Description of algorithms coming soon...
 
 ## Backup
 
-Dumping the entire database can be slow and costly. To limit records, a  timestamp filter can be applied to `mysqldump`:
+Dumping the entire database can be slow and costly. 
+
+```
+TODO: INSTRUCTIONS FOR SHUTDOWN OF SERVICES
+--single-transaction --quick --lock-tables=false ...Does this help...???
+db_snapshot.py [DAYS]
+```
+
+To limit records, a  timestamp filter can be applied to `mysqldump`:
 
 ```mysqldump --databases dota --tables dota_matches --where="start_time>1604592194" -u dota -p > dota_matches.sql
 mysqldump --databases dota --tables dota_matches --where="start_time>1604808513" -u dota -p | gzip > dota_matches.sql.gz
