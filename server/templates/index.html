@@ -54,10 +54,18 @@
 
 <h2>Overall Service Health</h2>
 <p>All times reported in US/Eastern time zone.</p>
-<div class="chart" id="bargraph">
+
+<div class="chart" id="bargraph3">
     <script>
-        var graphs = {{record_count_plot | safe}};
-        Plotly.plot('bargraph',graphs,{});
+        var graphs = {{rec_plot3 | safe}};
+        Plotly.plot('bargraph3',graphs,{});
+    </script>
+</div>
+
+<div class="chart" id="bargraph14">
+    <script>
+        var graphs = {{rec_plot14 | safe}};
+        Plotly.plot('bargraph14',graphs,{});
     </script>
 </div>
 
@@ -70,7 +78,7 @@
       <th scope="col">Very High</th>
     </tr>
   </thead>
-{% for row in rows %}
+{% for row in rec_count_table %}
     <tr>
 	    <td>{{ row[0] }}</td>
 	    <td>{{ row[1] }}</td>

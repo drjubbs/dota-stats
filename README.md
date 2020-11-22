@@ -204,24 +204,20 @@ Restart the supervisor service: `sudo systemctl restart supervisor`. Now request
 
 # TODO
 
-- Fetch
-
-  - Around "INSERT INTO" first check that we have any records at all.
-  - Look at ThreadPooling code in fetch.py... it's probably possible to start the executor at a higher level to prevent the continuous creation and destruction of thread pools
-  - Create and close the database connection more frequenctly.
-  - Check logs and /errors for malformed responses I continue be getting from the API. Grep "ERROR" and "Traceback"
-
-- Overall
-
-  - Finish protobuf implementation (see "foo.sh" for errors)
-  - Reversion requirements.txt to the newest distro (Ubuntu 20.04 LTS)
-  - Replace other instances of "INSERT INTO .... DUPLICATE KEY" with "REPLACE INTO"
-  - Think about how to balance coefficients in logistic regression when 2nd order effects are include (i.e. shift weight on coefficients from hero-hero interactions onto base hero). Perhaps fit the model in two stages, with the hero/hero interactions on the residuals.
-  - How to publish results in a meaningful way on a site like reddit?
-  - Clean-up/linting of all code.
-  - Add win rate by position based on maximum likelihood to the `hero_overall_winrrate` workbook.
-  - Consider adding a second mode to `fetch` where match IDs are randomly sampled over a time horizon vs. using the (broken) GetMatchHistory endpoint.
+- Fetching Data
+  - Look at ThreadPooling code in fetch.py... it's probably possible to start the executor at a higher level to prevent the continuous creation and destruction of thread pools (is this done?)
+  - Check logs and /errors for malformed responses I continue be getting from the API -- Grep "ERROR" and "Traceback" in production logs
   - Recheck filtering on fetch that it is accurate and what is desired.
-- Document fetch logic as well as algorithms being used
-  
-  
+  - Document fetch logic as well as algorithms being used
+  - In logs, look for `num_results (try` . How often is this failing? It appears Valve's API often returns no records, perhaps due to some error with a load balancer?
+  - In logs get a count of URLError, HTTPError, etc... and adjust number of threads accordingly.
+- General
+  - Finish protobuf and bitmask implementations
+  - Make sure `fetch_win_rate.py` is updating properly in terms of date ranges
+  - Replace other instances of "INSERT INTO .... DUPLICATE KEY" with "REPLACE INTO"
+  - Reversion requirements.txt to the newest distro (Ubuntu 20.04 LTS)
+  - Clean-up/linting of all code.
+- Data Analysis / Modeling
+  - Think about how to balance coefficients in logistic regression when 2nd order effects are include (i.e. shift weight on coefficients from hero-hero interactions onto base hero). Perhaps fit the model in two stages, with the hero/hero interactions on the residuals.
+  - Add win rate by position based on maximum likelihood to the `hero_overall_winrrate` workflow.
+- Audit log level in `fetch.py` so that INFO can be turned off and logs are smaller and contain more help

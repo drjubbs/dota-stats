@@ -3,38 +3,166 @@ import os
 import pandas as pd
 import datetime as dt
 import pytz
-from dateutil.tz import tzlocal
-import plotly.express as px
-import pandas as pd
 import plotly
 import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 from flask import Flask, render_template
-import mariadb
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.dialects.mysql import TINYINT
 
 app = Flask(__name__)
+
+# Setup SQLAlchemy
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db_uri="mysql://{0}:{1}@{2}/{3}".format(
+                os.environ['DOTA_USERNAME'],
+                os.environ['DOTA_PASSWORD'],
+                os.environ["DOTA_HOSTNAME"],
+                os.environ['DOTA_DATABASE'],
+                )
+
+
+app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
+db = SQLAlchemy(app)
+
+class Match(db.Model):
+    """Base class for match results"""
+    __tablename__ = 'dota_matches'
+
+    match_id = db.Column(db.BigInteger, primary_key=True)
+    start_time = db.Column(db.BigInteger)
+    radiant_heroes = db.Column(db.CHAR(32))
+    dire_heroes = db.Column(db.CHAR(32))
+    radiant_win = db.Column(TINYINT)
+    api_skill = db.Column(db.Integer)
+    items = db.Column(db.VARCHAR(1024))
+    gold_spent = db.Column(db.VARCHAR(1024))
+
+    def __repr__(self):
+        return '<Match %r>' % self.match_id
+
+class FetchSummary(db.Model):
+    """Base class for fetch summary stats"""
+    __tablename__ = 'fetch_summary'
+    date_hour_skill = db.Column(db.CHAR(32), primary_key=True)
+    skill = db.Column(db.Integer)
+    rec_count = db.Column(db.Integer)
+
+class FetchWinRate(db.Model):
+    """Base class for fetch_win_rate object."""
+
+    __tablename__="fetch_win_rate"
+    hero_skill = db.Column(db.CHAR(128), primary_key=True)
+    skill = db.Column(TINYINT)
+    hero = db.Column(db.CHAR(128))
+    time_range = db.Column(db.CHAR(128))
+    radiant_win = db.Column(db.Integer)
+    radiant_total = db.Column(db.Integer)
+    radiant_win_pct = db.Column(db.Float)
+    dire_win = db.Column(db.Integer)
+    dire_total = db.Column(db.Integer)
+    dire_win_pct = db.Column(db.Float)
+    win = db.Column(db.Integer)
+    total = db.Column(db.Integer)
+    win_pct = db.Column(db.Float)
+
+
+def get_health_metrics(days, timezone):
+    """Returns a Pandas dataframe summarizing number of matches processed 
+    over an interval of days."""
+
+    # Start with empty dataframe, by hour
+    local_tz=pytz.timezone(timezone)
+
+    utc_offset=local_tz.utcoffset(dt.datetime.now())
+    utc_hour=int(utc_offset.total_seconds()/3600)
+ 
+    now=dt.datetime.utcnow()
+    now=now+utc_offset
+    now_hour=dt.datetime(now.year, now.month, now.day, now.hour, 0, 0)
+
+    times=[(now_hour-dt.timedelta(hours=i)).strftime("%Y-%m-%dT%H:00:00")\
+                for i in range(24*days)]
+    times=["{0}{1:+03d}00".format(t,utc_hour) for t in times]
+
+    df_summary1=pd.DataFrame(index=times, data={
+                                            1 : [0]*len(times), 
+                                            2 : [0]*len(times), 
+                                            3 : [0]*len(times), 
+                                          })
+
+    # Fetch from database
+    begin=int((dt.datetime.utcnow()-dt.timedelta(days=days)).timestamp())
+    begin=str(begin)+"_0"
+    stmt="select date_hour_skill, rec_count from fetch_summary "
+    stmt+="where date_hour_skill>='{}'"
+    rows=pd.read_sql_query(stmt.format(begin), db.engine)
+
+    date_hour_skill = rows['date_hour_skill'].tolist()
+    rec_count = rows['rec_count'].tolist()
+
+    # Split out times and localize to current timezone (East Coast US)
+    # Note that using pytz causes the timestamps to localize relative
+    # to the stated time and not current time. To avoid discontinuities
+    # we'll localize to current time.
+    times=[dt.datetime.utcfromtimestamp(int(t.split("_")[0]))\
+            for t in date_hour_skill]
+    times=[t+utc_offset for t in times]
+    times=[t.strftime("%Y-%m-%dT%H:00:00") for t in times]
+    times=["{0}{1:+03d}00".format(t,utc_hour) for t in times]
+
+    # Get remaining fields
+    skills=[int(t.split("_")[1]) for t in date_hour_skill]
+
+    # Pivot for tablular view
+    df_summary2=pd.DataFrame({
+        'date_hour' : times,
+        'skill' : skills,
+        'count' : rec_count
+        })
+    df_summary2=df_summary2.pivot(index='date_hour', 
+                                  columns='skill', values='count').\
+                                          fillna(0).\
+                                          astype('int32').\
+                                          sort_index(ascending=False)
+    df_summary=df_summary1.add(df_summary2, fill_value=0)
+
+    # Rename columns
+    df_summary=df_summary[[1,2,3]]
+    df_summary.columns=['normal', 'high', 'very_high']
+    df_summary=df_summary.sort_index(ascending=False)
+    
+    # For summary table
+    rows=zip(df_summary.index.values,
+             df_summary['normal'].values, 
+             df_summary['high'].values, 
+             df_summary['very_high'].values)
+
+    # For plot
+    fig = go.Figure(data=[
+            go.Bar(name='Normal',
+                   x=df_summary.index.values, 
+                   y=df_summary['normal']),
+            go.Bar(name='High', 
+                   x=df_summary.index.values,
+                   y=df_summary['high']),
+            go.Bar(name='Very High',
+                   x=df_summary.index.values,
+                   y=df_summary['very_high']),
+        ])
+    fig.update_layout(barmode='stack')
+    record_count_plot=json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
+    return record_count_plot, rows
 
 @app.route('/')
 def status():
 
-    # Setup connection
-    conn = mariadb.connect(
-    user=os.environ['DOTA_USERNAME'],
-    password=os.environ['DOTA_PASSWORD'],
-    host=os.environ["DOTA_HOSTNAME"],
-    database=os.environ['DOTA_DATABASE'])
-    c=conn.cursor()
-
-    skill_dict = {
-        1: 'Normal Skill',
-        2: 'High Skill',
-        3: 'Very High Skill',        
-    }
-
     #---------------------------------------------------------------
     # Win rate by skill level
     #---------------------------------------------------------------
-    df_sql=pd.read_sql("select * from fetch_win_rate",conn)
+
+    df_sql=pd.read_sql_table("fetch_win_rate",db.engine)
     df_sql['skill']=[int(t.split("_")[-1]) for t in df_sql['hero_skill']]
    
     radiant_vs_dire=[]
@@ -51,7 +179,6 @@ def status():
                     (df_sub.sum()['radiant_total'])))
     
         time_range=set(df_sub['time_range']).pop()
-        title="{1} UTC".format(skill_dict[skill], time_range)
         
         fig.add_trace(go.Scatter(
                             x=df_sub['total'].values, 
@@ -63,6 +190,7 @@ def status():
                           col=counter)
         counter=counter+1
 
+    title="{0} UTC".format(time_range)
     fig.update_layout(title=title,
                      height=600,
                      width=1600,
@@ -71,50 +199,14 @@ def status():
     fig.update_yaxes({'title' : 'Win %'})
     win_rate_figs=json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
-    #-----------------------------------------------------------------
-    # Record count health metrics
-    #-----------------------------------------------------------------
-    # Limit window of record counts
-    begin=int((dt.datetime.utcnow()-dt.timedelta(days=3)).timestamp())
-    begin=str(begin)+"_0"
-    c.execute("select date_hour_skill, rec_count from fetch_summary where date_hour_skill>='{}'".format(begin))
-    rows=c.fetchall()
-
-    # Split out times and localize to my server timezone (East Coast US)
-    mytz=pytz.timezone("US/Eastern")
-    times=[dt.datetime.fromtimestamp(int(t[0].split("_")[0]),tzlocal()) for t in rows]
-    times=[t.astimezone(mytz).strftime("%Y-%m-%dT%H:00:00%z") for t in times]
-    # Get remaining fields
-    skills=[int(t[0].split("_")[1]) for t in rows]
-    rec_count=[t[1] for t in rows]
-
-    # Pivot for tablular view
-    df_summary=pd.DataFrame({
-        'date_hour' : times,
-        'skill' : skills,
-        'count' : rec_count
-        })
-    df_summary=df_summary.pivot(index='date_hour', columns='skill', values='count').fillna(0).astype('int32').sort_index(ascending=False)
-    df_summary=df_summary[[1,2,3]]
-    df_summary.columns=['normal', 'high', 'very_high']
-
-    # For summary table
-    rows=zip(df_summary.index.values,
-             df_summary['normal'].values, 
-             df_summary['high'].values, 
-             df_summary['very_high'].values)
-
-    # For plot
-    fig = go.Figure(data=[
-            go.Bar(name='Normal', x=df_summary.index.values, y=df_summary['normal']),
-            go.Bar(name='High', x=df_summary.index.values, y=df_summary['high']),
-            go.Bar(name='Very High', x=df_summary.index.values, y=df_summary['very_high']),
-        ])
-    fig.update_layout(barmode='stack')
-    record_count_plot=json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-
+    #---------------------------------------------------------------
+    # Health metrics
+    #---------------------------------------------------------------
+    rec_plot14, _ = get_health_metrics(14, 'US/Eastern')
+    rec_plot3, rec_count_table = get_health_metrics(3, 'US/Eastern')
     return render_template("index.html",
                             radiant_vs_dire=radiant_vs_dire,
                             win_rate_figs=win_rate_figs,
-                            rows=rows, 
-                            record_count_plot=record_count_plot)
+                            rec_count_table=rec_count_table, 
+                            rec_plot3=rec_plot3,
+                            rec_plot14=rec_plot14,)

@@ -13,6 +13,7 @@ import ssl
 from urllib import request, error
 from functools import partial
 from concurrent import futures
+from concurrent.futures import TimeoutError
 import http.client
 import datetime as dt
 import numpy as np
@@ -279,6 +280,9 @@ def process_match(hero, skill, match_id):
         match=fetch_match(match_id, skill)
     except APIException as e_msg:
         log.error("{0:20.20} {1}". format("API Error", str(e_msg)))
+        return None
+    except TimeoutError as e_msg:
+        log.error("{0:20.20} {1}". format("TimeoutError", str(e_msg)))
         return None
     try:
         summary=parse_match(match)

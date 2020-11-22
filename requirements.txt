@@ -14,4 +14,5 @@ scipy==1.5.2
 snakeviz==2.1.0
 ujson==3.2.0
 protobuf==3.13.0
-requests==2.24.0
+Flask_SQLAlchemy==2.4.4
+mysqlclient==2.0.1
