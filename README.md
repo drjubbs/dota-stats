@@ -212,6 +212,11 @@ Restart the supervisor service: `sudo systemctl restart supervisor`. Now request
 
 # TODO
 
+- General
+  - Finish protobuf and bitmask implementations. Protobuf currently only does hero, extend to full match info? (At least include items + player IDs)
+  - Replace other instances of "INSERT INTO .... DUPLICATE KEY" with "REPLACE INTO"
+  - Reversion requirements.txt to the newest distro (Ubuntu 20.04 LTS)
+  - Clean-up/linting of all code.
 - Fetching Data
   - Look at ThreadPooling code in fetch.py... it's probably possible to start the executor at a higher level to prevent the continuous creation and destruction of thread pools (is this done?)
   - Check logs and /errors for malformed responses I continue be getting from the API -- Grep "ERROR" and "Traceback" in production logs
@@ -219,12 +224,6 @@ Restart the supervisor service: `sudo systemctl restart supervisor`. Now request
   - Document fetch logic as well as algorithms being used
   - In logs, look for `num_results (try` . How often is this failing? It appears Valve's API often returns no records, perhaps due to some error with a load balancer?
   - In logs get a count of URLError, HTTPError, etc... and adjust number of threads accordingly.
-- General
-  - Finish protobuf and bitmask implementations
-  - Make sure `fetch_win_rate.py` is updating properly in terms of date ranges
-  - Replace other instances of "INSERT INTO .... DUPLICATE KEY" with "REPLACE INTO"
-  - Reversion requirements.txt to the newest distro (Ubuntu 20.04 LTS)
-  - Clean-up/linting of all code.
 - Data Analysis / Modeling
   - Think about how to balance coefficients in logistic regression when 2nd order effects are include (i.e. shift weight on coefficients from hero-hero interactions onto base hero). Perhaps fit the model in two stages, with the hero/hero interactions on the residuals.
   - Add win rate by position based on maximum likelihood to the `hero_overall_winrrate` workflow.

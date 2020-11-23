@@ -19,6 +19,10 @@ def first_order_vector(rad_heroes, dire_heroes):
     """Generate vector encoding hero selections. Length
     of vector is 2N, where [0:N] are {0,1} indicating radiant
     selection, and [N:N2] are {0,1} indicating dire.
+
+         1 = Radiant
+        -1 = Dire
+
     """
     X1=np.zeros(len(meta.HEROES)*2, dtype='b')
     for rh in rad_heroes:

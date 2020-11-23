@@ -20,7 +20,6 @@ import numpy as np
 import mariadb
 import ujson as json
 import meta
-import serialize
 
 #----------------------------------------------
 # Globals
@@ -102,19 +101,25 @@ def fetch_url(url):
 
         try:
             resp=request.urlopen(req,context=CTX)
+
             if resp.code==200:
                 txt=resp.read()
                 resp_json=json.loads(txt)
-                if 'error' in resp_json:
-                    print("*** ",url)
-                    raise APIException("Match ID not found")
+                if 'error' in resp_json['result']:
+                    raise APIException(resp_json['result']['error'])
                 return resp_json['result']
 
         # Catch exceptions, sleep a little, and re-try until
         # our sleep schedule is exhausted.
         except error.HTTPError as http_e:
-            log.error("error.HTTPError  %s", http_e.msg)
-            time.sleep(np.random.uniform(0.5,1.5))
+        
+            # Don't enter the wait loop if the server rejected our
+            # key outright.
+            if http_e.reason.upper()=='FORBIDDEN':
+                raise ValueError("Forbidden - Check Steam API key")
+            else:
+                log.error("error.HTTPError  %s", http_e.msg)
+                time.sleep(np.random.uniform(0.5,1.5))
 
         except error.URLError as url_e:
             log.error("error.URLError  %s", url_e.reason)
@@ -256,6 +261,7 @@ def fetch_match(match_id,skill):
         match=fetch_url(url.format(os.environ['STEAM_KEY'],match_id))
         if 'start_time' in match.keys():
             break
+
         log.error("Match ID not found: %s", str(match_id))
         time.sleep(1)
 
