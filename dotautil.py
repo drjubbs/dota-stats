@@ -7,10 +7,8 @@
 
 See individual methods for more information.
 """
-import os
-import mariadb
+
 import numpy as np
-import ujson as json
 from match import match_pb
 import meta
 
@@ -142,9 +140,8 @@ class MLEncoding:
             -1 = Dire
 
         """
-
         # Placeholder for results
-        x1_data = np.zeros([len(rad_heroes), meta.NUM_HEROES*2], dtype='b')
+        x1_data = np.zeros([len(rad_heroes), meta.NUM_HEROES*2], dtype=np.int8)
 
         # For each row, create five repeated indicies so we can unroll
         # the list of heroes
@@ -179,15 +176,15 @@ class MLEncoding:
         dire_heroes: radiant heroes, numerical by enum
 
         """
-        data_x2=np.zeros([meta.NUM_HEROES,meta.NUM_HEROES], dtype='b')
+        data_x2=np.zeros([meta.NUM_HEROES,meta.NUM_HEROES], dtype=np.int8)
         for rad_hero in rad_heroes:
             for dire_hero in dire_heroes:
                 irh=meta.HEROES.index(rad_hero)
                 idh=meta.HEROES.index(dire_hero)
                 if idh>irh:
-                    data_x2[irh,idh]=1
+                    data_x2[irh,idh] = 1
                 if idh<irh:
-                    data_x2[idh,irh]=-1
+                    data_x2[idh,irh] = -1
                 if idh==irh:
                     raise ValueError("Duplicate heroes: {} {}".format(\
                                                     rad_heroes,dire_heroes))
@@ -198,7 +195,7 @@ class MLEncoding:
         """Unravel upper triangular matrix into flat vector, skipping
         diagonal. See README.md for more information."""
         size=x2_matrix.shape[1]
-        x_flat=np.zeros(int(size*(size-1)/2), dtype='b')
+        x_flat=np.zeros(int(size*(size-1)/2), dtype=np.int8)
 
         idx = np.triu_indices(n=size, k=1)
         x_flat = x2_matrix[idx]
@@ -206,80 +203,66 @@ class MLEncoding:
         return x_flat
 
     @staticmethod
-    def unflatten_second_order_upper(x_flat):
+    def unflatten_second_order_upper(x_flat, mirror=True):
         """Create upper triangular matrix from flat vector, skipping
-        diagonal. See README.md for more information."""
+        diagonal. Mirror controls whether or not the value is reflected
+        over the diagonal.
+
+        See README.md for more information."""
         matrix_size = int((1+(1+8*x_flat.shape[0])**(0.5))/2)
         x_matrix = np.zeros([matrix_size, matrix_size])
         counter = 0
         for i in range(matrix_size):
             for j in [t+i+1 for t in range(matrix_size-i-1)]:
                 x_matrix[i,j]=x_flat[counter]
-                x_matrix[j,i]=-x_flat[counter]
+                if mirror:
+                    x_matrix[j,i]=-x_flat[counter]
                 counter=counter+1
         return x_matrix
 
+
     @classmethod
-    def create_features(cls, begin, end, skill):
-        """Main entry point to create first and second order
-        features for classification.
+    def create_features(cls, radiant_heroes, dire_heroes, radiant_win):
+        """Main entry point to create one-hot encodings for machine learning.
+
+        Input:
+
+            radiant_heroes: list of lists, heroes on radiant in each match
+            dire_heroes:    list of lists, heroes on dire in each match
+            radiant_win:    boolean, radiant win flag
 
         Returns:
-            y: Target, 1 = radiant win, 0 = dire win
-            X1: 2*N, heroes, 0:N radiant, N:2N dire
-            X2: flatten upper triangular hero - vs. other team interaction
-            X3: X1 + X2
+            y:          Target, 1 = radiant win, 0 = dire win
+            x1_hero:    2*N, heroes, 0:N radiant, N:2N dire, was hero present?
+            x2_against: flattened upper triangular matrix hero, antagonist
+                        interaction terms
+            X3_all:     x1_hero + x2_against
         """
 
-        # Database fetch
-        conn = mariadb.connect(
-            user=os.environ['DOTA_USERNAME'],
-            password=os.environ['DOTA_PASSWORD'],
-            host=os.environ['DOTA_HOSTNAME'],
-            database=os.environ['DOTA_DATABASE'])
-        cursor=conn.cursor()
+        if len(radiant_heroes) != len(dire_heroes):
+            raise ValueError("Mismatch in number of matches radiant vs dire")
 
-        # Fetch all rows
-        stmt="SELECT start_time, match_id, radiant_heroes, dire_heroes, "
-        stmt+="radiant_win FROM dota_matches WHERE start_time>={0} and "
-        stmt+="start_time<={1} and api_skill={2}"
-        stmt=stmt.format(
-            int(begin.timestamp()),
-            int(end.timestamp()),
-            skill)
-
-        cursor.execute(stmt)
-        rows=cursor.fetchall()
-        print("Records: {}".format(len(rows)))
-
-        # Setup the targets
-        radiant_win=np.array([t[-1] for t in rows])
-
-        # First order effects
-        rad_heroes = [json.loads(t[2]) for t in rows]
-        dire_heroes = [json.loads(t[3]) for t in rows]
-        x1_hero = cls.first_order_vector(rad_heroes, dire_heroes)
+        num_matches = len(radiant_heroes)
+        x1_hero = cls.first_order_vector(radiant_heroes, dire_heroes)
 
         # Second order effects
-        x2_against = np.zeros([len(rows),\
-            int(meta.NUM_HEROES*(meta.NUM_HEROES-1)/2)], dtype='b')
+        x2_against = np.zeros([num_matches,\
+            int(meta.NUM_HEROES*(meta.NUM_HEROES-1)/2)], dtype=np.int8)
 
         # x_all = first order effects + match-ups ally vs. enemy
-        x_all = np.zeros([len(rows), x1_hero.shape[1]+x2_against.shape[1]], dtype='b')
+        x_all = np.zeros([num_matches, x1_hero.shape[1]+x2_against.shape[1]], dtype=np.int8)
 
         counter=0
-        for row in rows:
+        for rhs, dhs in zip(radiant_heroes, dire_heroes):
             x2_against[counter,:] = cls.flatten_second_order_upper(
-                                    cls.second_order_hmatrix(
-                                            json.loads(row[2]),
-                                            json.loads(row[3])))
+                                    cls.second_order_hmatrix(rhs, dhs))
             x_all[counter, :] = np.concatenate([
                                     x1_hero[counter,:],
                                     x2_against[counter,:]
                                     ])
 
             if counter % 10000 == 0:
-                print("{} of {}".format(counter,len(rows)))
+                print("{} of {}".format(counter,num_matches))
 
             counter=counter+1
 

@@ -284,6 +284,65 @@ class TestMLEncoding(unittest.TestCase):
         self.assertTrue(np.all(row_sum <= upper))
         self.assertTrue(np.all(row_sum >= lower))
 
+    def test_create_features(self):
+        """Check of the higher level one-hot encoding function"""
+
+        # Sample data
+        rad = [[1, 22, 110, 33, 14],
+               [71, 7, 1, 86, 59],
+               [39, 107, 13, 98, 20],
+               [119, 74, 1, 29, 128],
+               [53, 128, 1, 50, 2]]
+
+        dire = [[35, 128, 31, 60, 111],
+                [10, 2, 70, 31, 83],
+                [1, 35, 67, 42, 68],
+                [84, 126, 64, 120, 54],
+                [87, 76, 93, 29, 100]]
+
+        wins = [1, 0, 1, 0, 1]
+
+        _, _, _, x3_data = \
+                        MLEncoding.create_features(rad, dire, wins)
+
+        # Convert to hero index from hero number
+        rad_idx = []
+        for row in rad:
+            rad_idx.append([meta.HEROES.index(t) for t in row ])
+
+        dire_idx = []
+        for row in dire:
+            dire_idx.append([meta.HEROES.index(t) for t in row ])
+
+        # Look at 4th match, 2nd dire hero
+        fourth = x3_data[3, :]
+        idx_hero2_dire = dire_idx[3][1]
+
+        # Should be zero for radiant "first order" and -1 for dire...
+        self.assertEqual(fourth[idx_hero2_dire], 0)
+        self.assertEqual(fourth[idx_hero2_dire+meta.NUM_HEROES], -1)
+
+        # Now check 2nd order encoding for same match
+        upper = MLEncoding.unflatten_second_order_upper(\
+                            fourth[2*meta.NUM_HEROES:], mirror=False)
+
+        # hero: [116, 116, 116, 116, 116]
+        # other team: [113, 72, 0, 27, 117]
+        hero_idx = 5*[idx_hero2_dire]
+        enemy_idx = rad_idx[3]
+
+        # Only the last entry should hold -1
+        self.assertTrue(all(np.isclose(
+            upper[(hero_idx, enemy_idx)],
+            np.array([ 0.,  0.,  0.,  0., -1.])
+        )))
+
+        # Flipping around everything but the last should be populated
+        self.assertTrue(all(np.isclose(
+            upper[(enemy_idx, hero_idx)],
+            np.array([ 1.,  1.,  1.,  1., 0.])
+        )))
+
 
 if __name__ == '__main__':
     fetch.log.setLevel(logging.CRITICAL)
