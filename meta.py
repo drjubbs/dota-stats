@@ -1,11 +1,7 @@
 # -*- coding: utf-8 -*-
-import requests
-import json
-import bs4
-import time
-import random
-import uuid
-import pdb
+"""Metadata and enumerations used throughout the project."""
+
+import ujson as json
 
 MODE_ENUM = {
     1 : 'All Pick (old)',
@@ -27,7 +23,6 @@ MODE_ENUM = {
 REVERSE_MODE_ENUM={}
 for k,v in MODE_ENUM.items():
     REVERSE_MODE_ENUM[v.upper().replace(" ","_").replace("(","").replace(")","")]=k
-
 
 LOBBY_ENUM = {
 	'INVALID' : -1,
@@ -83,56 +78,54 @@ LEAVER = [
 ]
 
 HERO_DICT= {
-        1: 'anti-mage', 2: 'axe', 3: 'bane', 4: 'bloodseeker', 
-        5: 'crystal-maiden', 6: 'drow-ranger', 7: 'earthshaker', 
-        8: 'juggernaut', 9: 'mirana', 10: 'morphling', 
-        11: 'shadow-fiend', 12: 'phantom-lancer', 13: 'puck', 
-        14: 'pudge', 15: 'razor', 16: 'sand-king', 17: 'storm-spirit', 
-        18: 'sven', 19: 'tiny', 20: 'vengeful-spirit', 
-        21: 'windranger', 22: 'zeus', 23: 'kunkka', 25: 'lina', 
-        26: 'lion', 27: 'shadow-shaman', 28: 'slardar', 
-        29: 'tidehunter', 30: 'witch-doctor', 31: 'lich', 32: 'riki', 
-        33: 'enigma', 34: 'tinker', 35: 'sniper', 36: 'necrophos', 
-        37: 'warlock', 38: 'beastmaster', 39: 'queen-of-pain', 
-        40: 'venomancer', 41: 'faceless-void', 42: 'wraith-king', 
-        43: 'death-prophet', 44: 'phantom-assassin', 45: 'pugna', 
-        46: 'templar-assassin', 47: 'viper', 48: 'luna', 
-        49: 'dragon-knight', 50: 'dazzle', 51: 'clockwerk', 
-        52: 'leshrac', 53: "nature's-prophet", 54: 'lifestealer', 
-        55: 'dark-seer', 56: 'clinkz', 57: 'omniknight', 
-        58: 'enchantress', 59: 'huskar', 60: 'night-stalker', 
-        61: 'broodmother', 62: 'bounty-hunter', 63: 'weaver', 
-        64: 'jakiro', 65: 'batrider', 66: 'chen', 67: 'spectre', 
-        68: 'ancient-apparition', 69: 'doom', 70: 'ursa', 
-        71: 'spirit-breaker', 72: 'gyrocopter', 73: 'alchemist', 
-        74: 'invoker', 75: 'silencer', 76: 'outworld-devourer', 
-        77: 'lycan', 78: 'brewmaster', 79: 'shadow-demon', 
-        80: 'lone-druid', 81: 'chaos-knight', 82: 'meepo', 
-        83: 'treant-protector', 84: 'ogre-magi', 85: 'undying', 
-        86: 'rubick', 87: 'disruptor', 88: 'nyx-assassin', 
-        89: 'naga-siren', 90: 'keeper-of-the-light', 91: 'io', 
-        92: 'visage', 93: 'slark', 94: 'medusa', 95: 'troll-warlord', 
-        96: 'centaur-warrunner', 97: 'magnus', 98: 'timbersaw', 
-        99: 'bristleback', 100: 'tusk', 101: 'skywrath-mage', 
-        102: 'abaddon', 103: 'elder-titan', 104: 'legion-commander', 
-        105: 'techies', 106: 'ember-spirit', 107: 'earth-spirit', 
-        108: 'underlord', 109: 'terrorblade', 110: 'phoenix', 
-        111: 'oracle', 112: 'winter-wyvern', 113: 'arc-warden', 
-        114: 'monkey-king', 119: 'dark-willow', 120: 'pangolier', 
-        121: 'grimstroke', 126: 'void-spirit', 128: 'snapfire', 
+        1: 'anti-mage', 2: 'axe', 3: 'bane', 4: 'bloodseeker',
+        5: 'crystal-maiden', 6: 'drow-ranger', 7: 'earthshaker',
+        8: 'juggernaut', 9: 'mirana', 10: 'morphling',
+        11: 'shadow-fiend', 12: 'phantom-lancer', 13: 'puck',
+        14: 'pudge', 15: 'razor', 16: 'sand-king', 17: 'storm-spirit',
+        18: 'sven', 19: 'tiny', 20: 'vengeful-spirit',
+        21: 'windranger', 22: 'zeus', 23: 'kunkka', 25: 'lina',
+        26: 'lion', 27: 'shadow-shaman', 28: 'slardar',
+        29: 'tidehunter', 30: 'witch-doctor', 31: 'lich', 32: 'riki',
+        33: 'enigma', 34: 'tinker', 35: 'sniper', 36: 'necrophos',
+        37: 'warlock', 38: 'beastmaster', 39: 'queen-of-pain',
+        40: 'venomancer', 41: 'faceless-void', 42: 'wraith-king',
+        43: 'death-prophet', 44: 'phantom-assassin', 45: 'pugna',
+        46: 'templar-assassin', 47: 'viper', 48: 'luna',
+        49: 'dragon-knight', 50: 'dazzle', 51: 'clockwerk',
+        52: 'leshrac', 53: "nature's-prophet", 54: 'lifestealer',
+        55: 'dark-seer', 56: 'clinkz', 57: 'omniknight',
+        58: 'enchantress', 59: 'huskar', 60: 'night-stalker',
+        61: 'broodmother', 62: 'bounty-hunter', 63: 'weaver',
+        64: 'jakiro', 65: 'batrider', 66: 'chen', 67: 'spectre',
+        68: 'ancient-apparition', 69: 'doom', 70: 'ursa',
+        71: 'spirit-breaker', 72: 'gyrocopter', 73: 'alchemist',
+        74: 'invoker', 75: 'silencer', 76: 'outworld-devourer',
+        77: 'lycan', 78: 'brewmaster', 79: 'shadow-demon',
+        80: 'lone-druid', 81: 'chaos-knight', 82: 'meepo',
+        83: 'treant-protector', 84: 'ogre-magi', 85: 'undying',
+        86: 'rubick', 87: 'disruptor', 88: 'nyx-assassin',
+        89: 'naga-siren', 90: 'keeper-of-the-light', 91: 'io',
+        92: 'visage', 93: 'slark', 94: 'medusa', 95: 'troll-warlord',
+        96: 'centaur-warrunner', 97: 'magnus', 98: 'timbersaw',
+        99: 'bristleback', 100: 'tusk', 101: 'skywrath-mage',
+        102: 'abaddon', 103: 'elder-titan', 104: 'legion-commander',
+        105: 'techies', 106: 'ember-spirit', 107: 'earth-spirit',
+        108: 'underlord', 109: 'terrorblade', 110: 'phoenix',
+        111: 'oracle', 112: 'winter-wyvern', 113: 'arc-warden',
+        114: 'monkey-king', 119: 'dark-willow', 120: 'pangolier',
+        121: 'grimstroke', 126: 'void-spirit', 128: 'snapfire',
         129: 'mars'}
 
-# +
 REVERSE_HERO_DICT = {}
 for k,v in HERO_DICT.items():
     REVERSE_HERO_DICT[v]=k
-    
+
 HEROES=list(HERO_DICT.keys())
 NUM_HEROES=len(HEROES)
-# -
 
 # Get items dictionary from OpenDota source:
-#   https://github.com/odota/dotaconstants 
+#   https://github.com/odota/dotaconstants
 with open('items.json') as f:
     txt=f.read()
     ITEMS=json.loads(txt)

@@ -1,7 +1,5 @@
-#!/usr/bin/env python
-# coding: utf-8
-"""
-fetch_summary - Update table containing record counts cache in database,
+# -*- coding: utf-8 -*-
+"""fetch_summary - Update table containing record counts cache in database,
 used to monitor the health of the fetch job.
 
 HORIZON_DAYS controls how far back in history is reprocessed each time

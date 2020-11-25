@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Download minimap icons used in plotting"""
 import requests
 import meta

@@ -1,5 +1,5 @@
-"""
-Algorthm for win probability by farm position. Position is inferred from
+# -*- coding: utf-8 -*-
+"""Algorthm for win probability by farm position. Position is inferred from
 a combination of actual gold farmed and a Bayesian like prior based on
 actual laning percentages (from dotabuff.com) and a 0/1 mask which is 
 manually constructed for each hero (e.g. witch doctor should never be

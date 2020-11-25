@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-# coding: utf-8
+# -*- coding: utf-8 -*-
 """fetch.py
 
 Fetches, parses, and puts matches into MariaDB using steam API. This script

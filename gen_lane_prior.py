@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Extract lane presence for all heroes from Dotabuff website, used to 
 develop part of `prior` probabilty distribution for doing lane estimation.
 """

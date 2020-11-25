@@ -64,14 +64,14 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.dummy import DummyClassifier
 from scipy import sparse
 import meta
-import ml_encoding
+from dotautil import MLEncoding
 ```
 
 ```python
-y, X1, X2, X3 = ml_encoding.create_features(
-                        begin=dt.datetime(2020,9,7),
-                        end=dt.datetime(2020,9,7,4,0),
-                        skill=1,)
+y, X1, X2, X3 = MLEncoding.create_features(
+                        begin=dt.datetime(2020,1,1),
+                        end=dt.datetime(2021,1,1),
+                        skill=3,)
 
 print("Large matrix size: {}".format(X3.shape))
 ```

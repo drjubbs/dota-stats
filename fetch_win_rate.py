@@ -1,6 +1,6 @@
-"""Calculate summary win rate statistcs for each hero, radiant vs. dire.
-
-This should be automated in a cron job.
+# -*- coding: utf-8 -*-
+"""Calculate summary win rate statistcs for each hero, radiant vs. dire. This 
+should be automated in a cron job.
 """
 import mariadb
 import os
