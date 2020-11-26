@@ -8,6 +8,8 @@ import pandas as pd
 import mariadb
 import numpy as np
 import ujson as json
+import sys
+sys.path.append("..")
 from dotautil import MLEncoding
 
 def main():
@@ -23,6 +25,11 @@ def main():
     try:
         begin = dt.datetime.strptime(opts.begin, "%Y%m%d")
         end = dt.datetime.strptime(opts.end, "%Y%m%d")
+
+        # Fetch all rows
+        begin = (begin - dt.datetime(1970,1,1)).total_seconds()
+        end = (end - dt.datetime(1970,1,1)).total_seconds()
+
     except ValueError:
         parser.error("Cannot read begin or end dates")
 
@@ -36,16 +43,15 @@ def main():
         host=os.environ['DOTA_HOSTNAME'],
         database=os.environ['DOTA_DATABASE'])
     cursor=conn.cursor()
-
-    # Fetch all rows
-    utc_zero = dt.datetime(1970,1,1).timestamp()
+    
     stmt="SELECT start_time, match_id, radiant_heroes, dire_heroes, "
     stmt+="radiant_win FROM dota_matches WHERE start_time>={0} and "
     stmt+="start_time<{1} and api_skill={2}"
     stmt=stmt.format(
-        int(begin.timestamp()-utc_zero),
-        int(end.timestamp()-utc_zero),
+        int(begin),
+        int(end),
         opts.skill)
+    print(stmt)
 
     cursor.execute(stmt)
     rows=cursor.fetchall()
@@ -71,6 +77,7 @@ def main():
     # Write to file
     if not os.path.exists("output"):
         os.mkdir("output")
+    begin=dt.datetime.utcfromtimestamp(begin)
     token = begin.strftime("%Y%m%d")
 
     np.save(os.path.join("output", "ydata_"+str(opts.skill)+"_"+token), y_data)

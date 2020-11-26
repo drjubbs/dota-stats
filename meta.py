@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Metadata and enumerations used throughout the project."""
 
+import os
 import ujson as json
 
 MODE_ENUM = {
@@ -126,7 +127,8 @@ NUM_HEROES=len(HEROES)
 
 # Get items dictionary from OpenDota source:
 #   https://github.com/odota/dotaconstants
-with open('items.json') as f:
+cwd = os.path.dirname(os.path.realpath(__file__))
+with open(os.path.join(cwd,'items.json')) as f:
     txt=f.read()
     ITEMS=json.loads(txt)
 

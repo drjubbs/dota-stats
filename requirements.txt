@@ -16,3 +16,4 @@ ujson==3.2.0
 protobuf==3.13.0
 Flask_SQLAlchemy==2.4.4
 mysqlclient==2.0.1
+requests==2.25.0
