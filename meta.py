@@ -94,7 +94,7 @@ HERO_DICT= {
         43: 'death-prophet', 44: 'phantom-assassin', 45: 'pugna',
         46: 'templar-assassin', 47: 'viper', 48: 'luna',
         49: 'dragon-knight', 50: 'dazzle', 51: 'clockwerk',
-        52: 'leshrac', 53: "nature's-prophet", 54: 'lifestealer',
+        52: 'leshrac', 53: "natures-prophet", 54: 'lifestealer',
         55: 'dark-seer', 56: 'clinkz', 57: 'omniknight',
         58: 'enchantress', 59: 'huskar', 60: 'night-stalker',
         61: 'broodmother', 62: 'bounty-hunter', 63: 'weaver',

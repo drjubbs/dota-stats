@@ -25,10 +25,10 @@ class TestDumpBug(unittest.TestCase):
         """Dump problematic API result to JSON"""
 
         if DUMP_BUG:
-            match="5609573360"
-            match=fetch.fetch_match(match,0)
-            with open("./testing/{}.json".format(match), "w") as filename:
-                filename.write(json.dumps(match))
+            match_id = "5710857053"
+            match = fetch.fetch_match(match_id, 0)
+            with open("./testing/{}.json".format(match_id), "w") as filename:
+                filename.write(json.dumps(match, indent=4))
                 self.assertTrue(match is not None)
 
 

@@ -6,50 +6,29 @@ The project also includes several analysis scripts and a web server, which use a
 
 The web server is a Flask based application, which I typically host through a reverse proxy configuration using Nginx and Gunicorn.
 
-Overview of the key files:
-- `fetch.py` runs in background fetching new data. It takes command line arguments for which hero and skill level to fetch. This is usually setup to run in the background using a crontab with a lock.
-- `fetch_summary.py` can be run to update the summary statistics in the `fetch_summary` table. This is used to track job health.
-- `fetch_win_rate.py` populates the summary table to show a rolling horizon win rate chart at various skill levels.
-- `meta.py` Meta-data contain enums and other contextual information for interpreting API results.
-- `ml_encoding.py` Utility functions which encode hero and hero pairing information for machine learning. Used to flatten and unflatten feature sets as needed.
-- `hero_overall_winrate.md` Notebook showing basic win rate plotting using descriptive statistics.
-- `gen_lane_prior.py` no longer actively used but perhaps useful, this script uses lane percentage information from http://dotabuff.com and some manually mask to provide a probability distribution for which farm position each hero should occupy. For a given match, you can then take the full time composition and calculate a "maximum likelihood" estimate to get farm priority. Not perfect, but it does allow some calculation of win percentage based on farm position.
-- `icons.py` Download most recent minimap icons. Icons might be useful to clean up visualizations.
-- `compact_db.py` earlier versions of the code using SQLite3 files instead of a MariaDB backend, this scripts compacts those files into a unique record set and transfers into MariaDB.
-- `run_test.py` Unit testing
-- `/server/ ` contains the Flask application
+## Contents
 
-# Analysis
+[TOC]
 
-Description of algorithms coming soon...
+# Analytical Methods
 
-## Backup
+## Hero/Role Probability Model
 
-Dumping the entire database can be slow and costly. 
+Given the scope of this project, it is impractical to analyze each match in detail to determine which role was played by each hero. However, many heroes (e.g. Tiny, Mirana, Void Sprit, etc...) are frequently played in multiple roles, and therefore overall win rate metrics might not capture key statistics. Therefore, this project employs an approximate methods, inspired by Bayesian statistics to do role assignment for subsequent analytics. These pieces of information are used to construct this model:
 
-```
-TODO: INSTRUCTIONS FOR SHUTDOWN OF SERVICES
---single-transaction --quick --lock-tables=false ...Does this help...???
-db_snapshot.py [DAYS]
-```
+- `A`  - An estimated position based on gold spent, taken from each match
+- `B`  - Lane presence estimates from Dota 2 statistical websites such as Dotabuff
+- `C`  - A manual configured "mask" restricting some heroes to roles (e.g. Anti-Mage should always be position 1)
 
-To limit records, a  timestamp filter can be applied to `mysqldump`:
+Each of these factors are normalized so role (farm position) totals 1. Prior to normalization, a minimal probability of 1% is given to each hero/role combination to allow for unlikely but "creative" heroes choices. These probabilities are multiplied together, and re-normalized to generate the probability model used for maximum likelihood role assignment. The file `analytics/prior_final.json` contains this models, along with a timestamp. An example of this probability model visualized as a heat map:
 
-```mysqldump --databases dota --tables dota_matches --where="start_time>1604592194" -u dota -p > dota_matches.sql
-mysqldump --databases dota --tables dota_matches --where="start_time>1604808513" -u dota -p | gzip > dota_matches.sql.gz
-```
+![hero prior example](./doc/hero_prior_example.png)
 
-where `start_time` can be obtained from a Python shell to represent a few hours/days worth of data:
 
-```
->>> from datetime import datetime, timedelta
->>> int((datetime.now()-timedelta(hours=12)).timestamp())
-1604592194.271184
-```
 
-# Setup
+# Configuration and Usage
 
-### Python Virtual Environment
+## Python Virtual Environment
 
 After cloning the repository, it is suggested that you setup a virtual environment and install the required python packages.
 
@@ -73,7 +52,7 @@ export FLASK_APP=server.py
 source env/bin/activate
 ```
 
-### MariaDB/MySQL
+## MariaDB/MySQL
 
 Proceed to follow instructions to setup MariaDB on your platform.   You may need to allow remote access if your analysis machine is different from your database, this usually involves setting the `bind-address` in MariaDB to `0.0.0.0` or commenting out that line.
 
@@ -122,7 +101,7 @@ CREATE USER 'dota'@'localhost' IDENTIFIED BY 'password1';
 GRANT ALL PRIVILEGES ON dota.* TO 'dota'@'localhost';
 ```
 
-### Automation/Crontab
+## Automation/Crontab
 
 Next create a basic shell script (`fetch.sh`) which activates the virtual environment and runs the scripts with the required options. 
 
@@ -147,7 +126,7 @@ This can then be setup to run on a regular basis using a user crontab (`crontab 
 */10 * * * * /usr/bin/flock -n /tmp/fetch.lockfile bash -l -c '/home/dota/fetch.sh'
 ```
 
-### Reverse Proxy Setup
+## Reverse Proxy Setup
 
 I use a combination of Nginx, Let's Encrypt, and Gunicorn to host the Flask application. Other stacks are possible but I've this one to be fairy straightforward to setup. Getting TLS certificates from Let's Encrypt is beyond the scope of this document. I hade the following edits to `/etc/nginx/sites-enabled/default`
 
@@ -210,21 +189,48 @@ redirect_stderr=true
 
 Restart the supervisor service: `sudo systemctl restart supervisor`. Now requests to port 80 (at least the root page) should be re-directed to `gunicorn` which is running on port 8000. This should all survive a reboot and is worth testing.
 
+## Database Backup
+
+Dumping the entire database can be slow and costly. 
+
+```
+TODO: INSTRUCTIONS FOR SHUTDOWN OF SERVICES
+--single-transaction --quick --lock-tables=false ...Does this help...???
+db_snapshot.py [DAYS]
+```
+
+To limit records, a  timestamp filter can be applied to `mysqldump`:
+
+```mysqldump --databases dota --tables dota_matches --where="start_time>1604592194" -u dota -p > dota_matches.sql
+mysqldump --databases dota --tables dota_matches --where="start_time>1604808513" -u dota -p | gzip > dota_matches.sql.gz
+```
+
+where `start_time` can be obtained from a Python shell to represent a few hours/days worth of data:
+
+```
+>>> from datetime import datetime, timedelta
+>>> int((datetime.now()-timedelta(hours=12)).timestamp())
+1604592194.271184
+```
+
 # TODO
 
 - General
-  - Finish protobuf and bitmask implementations. Protobuf currently only does hero, extend to full match info? (At least include items + player IDs)
+  - Protobuf: Include fields for model assigned roles (based on probability model), include GPM, match duration, and other useful information to statistics. Include player IDs for future skill level modeling.
+  - Bitmask implementation: More advanced analytics need to be done single hero at a time, get this functionality implemented.
   - Replace other instances of "INSERT INTO .... DUPLICATE KEY" with "REPLACE INTO"
   - Reversion requirements.txt to the newest distro (Ubuntu 20.04 LTS)
   - Clean-up/linting of all code.
-- Fetching Data
-  - Look at ThreadPooling code in fetch.py... it's probably possible to start the executor at a higher level to prevent the continuous creation and destruction of thread pools (is this done?)
-  - Check logs and /errors for malformed responses I continue be getting from the API -- Grep "ERROR" and "Traceback" in production logs
-  - Recheck filtering on fetch that it is accurate and what is desired.
-  - Document fetch logic as well as algorithms being used
+- Backend
+  - Look at ThreadPooling code in fetch.py... it's probably possible to start the executor at a higher level to prevent the continuous creation and destruction of thread pools.
+  - Check logs and /errors for malformed responses I continue be getting from the API -- Grep "ERROR" and "Traceback" in production logs.
+  - Recheck filtering on fetch that it is accurate and what is desired. Add unit testing.
+  - Document fetch logic as well as filtering algorithms being used.
   - In logs, look for `num_results (try` . How often is this failing? It appears Valve's API often returns no records, perhaps due to some error with a load balancer?
   - In logs get a count of URLError, HTTPError, etc... and adjust number of threads accordingly.
 - Data Analysis / Modeling
-  - Think about how to balance coefficients in logistic regression when 2nd order effects are include (i.e. shift weight on coefficients from hero-hero interactions onto base hero). Perhaps fit the model in two stages, with the hero/hero interactions on the residuals.
-  - Add win rate by position based on maximum likelihood to the `hero_overall_winrrate` workflow.
-- Audit log level in `fetch.py` so that INFO can be turned off and logs are smaller and contain more help
+  - Add win rate by position based statistical modeling of role.
+  - `win_analysis` needs to be extended to include hero vs. enemy good/bad match-ups. This is currently waiting on bitmasking for heroes as each hero will need to be done independently due to memory constraints.
+    - Is the 2nd order upper triangular style analysis even needed? If so, explain.
+  
+  

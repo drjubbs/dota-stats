@@ -143,6 +143,7 @@ Note that L1 penality is used as in general this will force more coefficients to
 
 ```python
 intercept = 0.01*np.ones([x3_all.shape[0], 1])
+x1_intercept = np.concatenate([intercept, x1_hero], axis=1)
 x3_intercept = np.concatenate([intercept, x3_all], axis=1)
 ```
 
@@ -155,22 +156,25 @@ lr=LogisticRegression(
     warm_start=True,
     solver='saga')
 
-params={ 'C' : [10, 1, 0.1] }
+params={ 'C' : np.logspace(-3, 2, 30) }
 gscv=GridSearchCV(estimator=lr, 
                   param_grid=params,                  
                   verbose=2,
                   cv=3,
-                  n_jobs=1,
+                  n_jobs=4,
                   scoring=make_scorer(accuracy_score))
 
-gscv.fit(x3_intercept, y_radiant_win)
+## TODO TODO: This is not second order
+gscv.fit(x1_intercept, y_radiant_win)
 ```
 
 ```python
 for params, mean_test_score in zip(gscv.cv_results_['params'], gscv.cv_results_['mean_test_score']):    
     print("\t"+str(params))
     print("\t"+str(mean_test_score))
+```
 
+```python
 y_bar = gscv.best_estimator_.predict(X3)
 print(str(accuracy_score(y,y_bar)))
 print(str(balanced_accuracy_score(y,y_bar)))

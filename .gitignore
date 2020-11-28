@@ -143,3 +143,4 @@ snapshots/
 foo.py
 .vscode
 output
+__*.csv
