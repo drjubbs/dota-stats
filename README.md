@@ -97,8 +97,12 @@ CREATE TABLE fetch_history (match_id BIGINT PRIMARY KEY, start_time BIGINT) ENGI
 
 CREATE TABLE fetch_win_rate (hero_skill CHAR(128) PRIMARY KEY, skill TINYINT, hero CHAR(128), time_range CHAR(128), radiant_win INT, radiant_total INT, radiant_win_pct FLOAT, dire_win INT, dire_total INT, dire_win_pct FLOAT, win INT, total INT, win_pct FLOAT) ENGINE='MyISAM';
 
+CREATE DATABASE dota_dev;
+
 CREATE USER 'dota'@'localhost' IDENTIFIED BY 'password1';
 GRANT ALL PRIVILEGES ON dota.* TO 'dota'@'localhost';
+GRANT ALL PRIVILEGES ON dota_dev.* TO 'dota'@'localhost';
+
 ```
 
 ## Automation/Crontab
@@ -216,21 +220,24 @@ where `start_time` can be obtained from a Python shell to represent a few hours/
 # TODO
 
 - General
-  - Protobuf: Include fields for model assigned roles (based on probability model), include GPM, match duration, and other useful information to statistics. Include player IDs for future skill level modeling.
-  - Bitmask implementation: More advanced analytics need to be done single hero at a time, get this functionality implemented.
-  - Replace other instances of "INSERT INTO .... DUPLICATE KEY" with "REPLACE INTO"
-  - Reversion requirements.txt to the newest distro (Ubuntu 20.04 LTS)
+  - `db_util.py`: Add CLI features and ability to upgrade DB to create new table for win rate by position; add appropriate unit testing.
+  - Protobuf: Include new fields for modeled roles (based on probability model), include GPM, match duration, and other useful information which might be needed for analytics. Include player IDs for future work to model skill level based on match statistics.
+  - Bitmask implementation - need ability to search database for matches involving a specific hero.
+  - Replace other instances of "INSERT INTO .... DUPLICATE KEY" with "REPLACE INTO".
+  - Reversion requirements.txt to the newest distro (Ubuntu 20.04 LTS).
   - Clean-up/linting of all code.
 - Backend
-  - Look at ThreadPooling code in fetch.py... it's probably possible to start the executor at a higher level to prevent the continuous creation and destruction of thread pools.
+  - Look at ThreadPooling code in fetch.py - it's probably possible to start the executor at a higher level to prevent the continuous creation and destruction of thread pools.
   - Check logs and /errors for malformed responses I continue be getting from the API -- Grep "ERROR" and "Traceback" in production logs.
-  - Recheck filtering on fetch that it is accurate and what is desired. Add unit testing.
+  - Recheck filtering on fetch that it is accurate and what is desired. Add appropriate unit testing.
   - Document fetch logic as well as filtering algorithms being used.
-  - In logs, look for `num_results (try` . How often is this failing? It appears Valve's API often returns no records, perhaps due to some error with a load balancer?
-  - In logs get a count of URLError, HTTPError, etc... and adjust number of threads accordingly.
+  - In logs, look for `num_results (try` . How often is this failing? It appears Valve's API often returns no records at times, perhaps due to some error with a load balancer and a misconfigured node?
+  - In logs get a count of `URLError`, `HTTPError`, etc... and adjust number of threads accordingly.
 - Data Analysis / Modeling
-  - Add win rate by position based statistical modeling of role.
-  - `win_analysis` needs to be extended to include hero vs. enemy good/bad match-ups. This is currently waiting on bitmasking for heroes as each hero will need to be done independently due to memory constraints.
-    - Is the 2nd order upper triangular style analysis even needed? If so, explain.
+  - `generate_prior.py`: Add command line arguments and modify to work using dates instead of record counts.
+  - `winrate_position.py`: Add command line arguments and ability to write to new database table. CLI arguments should include a date range. Add appropriate unit testing.
+  - Add fields to main fetch tables for maximum likelihood of each line-up, see if this is a useful descriptor for machine learning to predict wins.
+  - `win_analysis` needs to be extended to include hero vs. enemy good/bad match-ups. This is currently waiting on bit masking for heroes as each hero will need to be done independently due to memory constraints.
+    - Is the 2nd order upper triangular style analysis even needed once we go to a per-hero model? If not, modify this document and edit `dotautil.py` to remove unused functions.
   
   

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Extract matches over a date range and one-hot encodes in a format suitable
 for machine learning."""
+import sys
 import datetime as dt
 import argparse
 import os
@@ -8,9 +9,8 @@ import pandas as pd
 import mariadb
 import numpy as np
 import ujson as json
-import sys
 sys.path.append("..")
-from dotautil import MLEncoding
+from dotautil import MLEncoding # pylint: disable=import-error, wrong-import-position
 
 def main():
     """Main entry point"""
@@ -43,7 +43,7 @@ def main():
         host=os.environ['DOTA_HOSTNAME'],
         database=os.environ['DOTA_DATABASE'])
     cursor=conn.cursor()
-    
+
     stmt="SELECT start_time, match_id, radiant_heroes, dire_heroes, "
     stmt+="radiant_win FROM dota_matches WHERE start_time>={0} and "
     stmt+="start_time<{1} and api_skill={2}"

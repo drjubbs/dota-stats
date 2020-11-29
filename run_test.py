@@ -5,14 +5,17 @@ import logging
 import os
 import numpy as np
 import ujson as json
+import mariadb
+
 import fetch
 import meta
+import db_util
 from dotautil import MatchSerialization, MLEncoding, Bitmask
+from analytics.winrate_position import HeroMaxLikelihood
 
 # Globals
 BIGINT=9223372036854775808  # Max bitmask
 DUMP_BUG = False            # See "TestDumpBug"
-
 
 class TestDumpBug(unittest.TestCase):
     """Use this class to dump a problematic match JSON for additional testing
@@ -30,6 +33,48 @@ class TestDumpBug(unittest.TestCase):
             with open("./testing/{}.json".format(match_id), "w") as filename:
                 filename.write(json.dumps(match, indent=4))
                 self.assertTrue(match is not None)
+
+
+class TestDB(unittest.TestCase):
+    """Parent class for testing functionality which requries database
+    connectivity."""
+
+    def setUp(self):
+        """Setup database for testing"""
+
+        # Database fetch
+        self.conn = mariadb.connect(
+            user=os.environ['DOTA_USERNAME'],
+            password=os.environ['DOTA_PASSWORD'],
+            host=os.environ['DOTA_HOSTNAME'],
+            database=os.environ['DOTA_DATABASE']+"_dev")
+        cursor = self.conn.cursor()
+
+        # Create initial database
+        db_util.create_version_001(self.conn)
+
+        # Populate tables
+        filename = os.path.join("testing", "test_database.txt")
+        with open(filename, "r") as filehandle:
+            db_txt = filehandle.read()
+        for stmt in db_txt.split("\n"):
+            cursor.execute(stmt)
+
+
+    def test_dummy(self):
+        """Dummy routine to ensure class setUp and tearDown are called.
+        This will eventually contain code which tests the upgrade prcoess.
+        process.
+        """
+        self.assertEqual(1, 1)
+
+
+    def tearDown(self):
+        """Delete all temporary tables"""
+
+        cursor = self.conn.cursor()
+        cursor.execute("DROP TABLE IF EXISTS dota_matches;")
+        self.conn.commit()
 
 
 class TestProtobuf(unittest.TestCase):
@@ -342,6 +387,44 @@ class TestMLEncoding(unittest.TestCase):
             upper[(enemy_idx, hero_idx)],
             np.array([ 1.,  1.,  1.,  1., 0.])
         )))
+
+class TestWinratePosition(TestDB):
+    """Test cases for winrate by position probability model"""
+
+    def test_winrate_position(self):
+        """Test assignment of heroes to positions and winrates"""
+
+        # Fetch data from testing DB
+        cursor=self.conn.cursor()
+        stmt="SELECT match_id, radiant_heroes, dire_heroes, radiant_win "
+        stmt+="FROM dota_matches"
+        cursor.execute(stmt)
+        rows=cursor.fetchall()
+
+        hml = HeroMaxLikelihood(os.path.join("analytics", "prior_final.json"))
+        total_win_mat, total_count_mat = hml.matches_to_summary(rows)
+
+        # 6 matches * 5 heroes, 1 winning each game = 30 wins, 60 total
+        self.assertEqual(np.sum(total_win_mat), 30.0)
+        self.assertEqual(np.sum(total_count_mat), 60.0)
+
+        # Drow in three matches, 3 wins
+        drow_id = meta.REVERSE_HERO_DICT['drow-ranger']
+        drow_idx = meta.HEROES.index(drow_id)
+
+        self.assertEqual(total_win_mat[drow_idx, :].sum(), 3)
+        self.assertEqual(total_count_mat[drow_idx, :].sum(), 3)
+
+        # Anti-mage in all, 2 wins
+        am_id = meta.REVERSE_HERO_DICT['anti-mage']
+        am_idx = meta.HEROES.index(am_id)
+
+        self.assertEqual(total_win_mat[am_idx, :].sum(), 2)
+        self.assertEqual(total_count_mat[am_idx, :].sum(), 6)
+
+        # dazzle, mirana, mars, zeus, phantom-assassin
+        max_h, _ = hml.find_max_likelihood([50, 9, 129, 22, 44])
+        self.assertEqual(max_h, [44, 22, 129, 9, 50])
 
 
 if __name__ == '__main__':
