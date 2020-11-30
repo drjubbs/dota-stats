@@ -88,7 +88,7 @@ def fetch_url(url):
     """Simple wait loop around fetching to deal with things like network
     outages, etc..."""
 
-    sleep_schedule=[0.25,1.0,2,10,30,60,300,500,1000,1000]
+    sleep_schedule=[0.5, 1, 2, 10, 30, 60, 300, 500, 1000, 1000]
     for sleep in sleep_schedule:
         time.sleep(np.random.uniform(0.3*sleep,0.7*sleep))
         req=request.Request(url, headers={
@@ -402,7 +402,8 @@ def fetch_matches(hero, skill, conn, executor):
 
         counter=counter+1
 
-    log.debug("Matches per minute: %f" % 60*counter/(time.time()-start))
+    mpm = str(60*counter/(time.time()-start))
+    log.debug("Matches per minute: %s", mpm)
 
 def usage():
     """Display usage information."""
