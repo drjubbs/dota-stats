@@ -64,7 +64,8 @@ def main():
 
     # Write to database, overwriting old records
     for idx,row in summary.iterrows():
-        stmt="INSERT INTO fetch_summary (date_hour_skill,rec_count) VALUES (?,?) ON DUPLICATE KEY UPDATE rec_count=(?)"
+        stmt="INSERT INTO fetch_summary (date_hour_skill,rec_count) VALUES "
+        stmt+="(?,?) ON DUPLICATE KEY UPDATE rec_count=(?)"
         cursor.execute(stmt,(
                 "{0:10d}_{1}".format(int(idx[0]),int(idx[1])),
                 int(row['match_ids']),

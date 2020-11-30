@@ -222,7 +222,8 @@ class MLEncoding:
 
 
     @classmethod
-    def create_features(cls, radiant_heroes, dire_heroes, radiant_win):
+    def create_features(cls, radiant_heroes, dire_heroes,
+                        radiant_win, verbose=True):
         """Main entry point to create one-hot encodings for machine learning.
 
         Input:
@@ -261,7 +262,7 @@ class MLEncoding:
                                     x2_against[counter,:]
                                     ])
 
-            if counter % 10000 == 0:
+            if counter % 10000 == 0 and verbose:
                 print("{} of {}".format(counter,num_matches))
 
             counter=counter+1

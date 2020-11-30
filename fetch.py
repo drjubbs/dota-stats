@@ -9,21 +9,20 @@ import logging
 import os
 import sys
 import ssl
+import json
 from urllib import request, error
 from functools import partial
 from concurrent import futures
-from concurrent.futures import TimeoutError
 import http.client
 import datetime as dt
 import numpy as np
 import mariadb
-import ujson as json
 import meta
 
 #----------------------------------------------
 # Globals
 #----------------------------------------------
-NUM_THREADS=8    # Set to 1 for single threaded execution
+NUM_THREADS=8        # Set to 1 for single threaded execution
 PAGES_PER_HERO=10
 MIN_MATCH_LEN=1200
 INITIAL_HORIZON=1    # Days to load from database on start-up
@@ -99,7 +98,7 @@ def fetch_url(url):
             })
 
         try:
-            resp=request.urlopen(req,context=CTX)
+            resp=request.urlopen(req, context=CTX)
 
             if resp.code==200:
                 txt=resp.read()
@@ -111,7 +110,7 @@ def fetch_url(url):
         # Catch exceptions, sleep a little, and re-try until
         # our sleep schedule is exhausted.
         except error.HTTPError as http_e:
-        
+
             # Don't enter the wait loop if the server rejected our
             # key outright.
             if http_e.reason.upper()=='FORBIDDEN':
@@ -255,8 +254,8 @@ def fetch_match(match_id,skill):
 
     url = "https://api.steampowered.com/IDOTA2Match_570/"
     url += "GetMatchDetails/V001/?key={0}&match_id={1}"
-    
-    for i in range(10):
+
+    for _ in range(10):
         match=fetch_url(url.format(os.environ['STEAM_KEY'],match_id))
         if 'start_time' in match.keys():
             break
@@ -270,8 +269,8 @@ def fetch_match(match_id,skill):
     if not 'start_time' in match.keys():
         if not os.path.exists('error'):
             os.makedirs('error')
-        with open("./error/{}.json".format(match_id), "w") as f:
-            f.write(json.dumps(match))
+        with open("./error/{}.json".format(match_id), "w") as file_handle:
+            file_handle.write(json.dumps(match))
         raise APIException("Bad match JSON {}".format(match_id))
 
     return match
@@ -286,7 +285,7 @@ def process_match(hero, skill, match_id):
     except APIException as e_msg:
         log.error("{0:20.20} {1}". format("API Error", str(e_msg)))
         return None
-    except TimeoutError as e_msg:
+    except futures.TimeoutError as e_msg:
         log.error("{0:20.20} {1}". format("TimeoutError", str(e_msg)))
         return None
     try:
@@ -403,7 +402,7 @@ def fetch_matches(hero, skill, conn, executor):
 
         counter=counter+1
 
-    log.debug("Matches per minute: {0}".format(60*counter/(time.time()-start)))
+    log.debug("Matches per minute: %f" % 60*counter/(time.time()-start))
 
 def usage():
     """Display usage information."""
@@ -413,6 +412,7 @@ def usage():
     sys.exit(1)
 
 def get_database_connection():
+    """Return a connection to the database"""
     conn = mariadb.connect(
         user=os.environ['DOTA_USERNAME'],
         password=os.environ['DOTA_PASSWORD'],

@@ -6,7 +6,8 @@ import argparse
 from datetime import datetime
 
 parser = argparse.ArgumentParser(description="Create snapshot of the database")
-parser.add_argument('days', type=float, help='Number of days of history to include, fractional values accepted')
+parser.add_argument('days', type=float,
+        help='Number of days of history to include, fractional values accepted')
 
 opts = parser.parse_args(sys.argv[1:])
 
@@ -42,4 +43,3 @@ cmd = cmd.format(
         filename)
 print(cmd)
 os.system(cmd)
-

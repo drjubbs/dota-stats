@@ -2,7 +2,7 @@
 """Metadata and enumerations used throughout the project."""
 
 import os
-import ujson as json
+import json
 
 MODE_ENUM = {
     1 : 'All Pick (old)',

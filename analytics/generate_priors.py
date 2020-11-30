@@ -11,12 +11,12 @@ and a prior probability based on analysis of matches.
 import os
 import sys
 import time
+import json
 from datetime import datetime
 import random
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
-import ujson as json
 import mariadb
 import numpy as np
 sys.path.append("..")

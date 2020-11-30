@@ -236,7 +236,6 @@ where `start_time` can be obtained from a Python shell to represent a few hours/
 - Data Analysis / Modeling
   - `generate_prior.py`: Add command line arguments and modify to work using dates instead of record counts.
   - `winrate_position.py`: Add command line arguments and ability to write to new database table. CLI arguments should include a date range. Add appropriate unit testing.
-  - Add fields to main fetch tables for maximum likelihood of each line-up, see if this is a useful descriptor for machine learning to predict wins.
   - `win_analysis` needs to be extended to include hero vs. enemy good/bad match-ups. This is currently waiting on bit masking for heroes as each hero will need to be done independently due to memory constraints.
     - Is the 2nd order upper triangular style analysis even needed once we go to a per-hero model? If not, modify this document and edit `dotautil.py` to remove unused functions.
   

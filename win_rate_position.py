@@ -5,13 +5,15 @@ code to estimate role based on `prior` probability models.
 
 import os
 import sys
+import json
 from itertools import permutations
 import mariadb
 import pandas as pd
-import ujson as json
 import numpy as np
 sys.path.append("..")
 import meta             # pylint: disable=import-error, wrong-import-position
+
+MATCH_CUTOFF = 30       # Number of matches needed to calculate winrate
 
 class HeroMaxLikelihood:
     """Use maximum likelihood methods to assign heroes to positions
@@ -26,6 +28,7 @@ class HeroMaxLikelihood:
             table = json.loads(json_file.read())
 
         self._prior_table = pd.DataFrame(table['prior'])
+        self._prior_table_fast = self._prior_table.values
         self.prior_version = table['version']
 
         # Check
@@ -35,12 +38,22 @@ class HeroMaxLikelihood:
         # Convert to dictionary for speed
         self._prior_dict=self._prior_table.transpose().to_dict()
 
-    def likelihood(self, heroes):
-        """Log likehood of heros base on prior distribution"""
+    def likelihood(self, heroes_idx, max_log_like):
+        """Log likehood of heros base on prior distribution. Note this function
+        works off hero index (not hero number!) to speed up calculation.
 
+        Since the heroes_are given in the correct position, we simply need the
+        log sum diagonal of the matrix defined by heroes_idx.
+        """
+
+        # Original
         log_like = 0
-        for hero, position in zip(heroes, ["P{}".format(t+1) for t in range(5)]):
+        for hero, position in zip(heroes_idx, ["P{}".format(t+1) for t in range(5)]):
             log_like += np.log(self._prior_dict[meta.HERO_DICT[hero]][position])
+
+            # Terminate early if we're already below a better match
+            if log_like<max_log_like:
+                break
 
         return log_like
 
@@ -48,13 +61,16 @@ class HeroMaxLikelihood:
         """Cycle thru all permutations and assign farm positions."""
 
         max_perm = [0, 1, 2, 3, 4]
-        max_like = self.likelihood(heroes)
+        max_like = self.likelihood(heroes, -1000)
+
         for this_perm in permutations(range(5)):
             test_heroes = [heroes[t] for t in this_perm]
-            this_like = self.likelihood(test_heroes)
+            this_like = self.likelihood(test_heroes, max_like)
 
             if verbose:
-                print(this_like, test_heroes)
+                raise NotImplementedError("This function works off the hero "\
+                                        "index which is not human readable")
+                ##print(this_like, test_heroes)
 
             if this_like > max_like:
                 max_like = this_like
@@ -119,18 +135,19 @@ def main():
         database=os.environ['DOTA_DATABASE'])
     cursor=conn.cursor()
 
-    stmt="SELECT match_id, radiant_heroes, dire_heroes, radiant_win FROM dota_matches LIMIT 100"
+    stmt="SELECT match_id, radiant_heroes, dire_heroes, radiant_win FROM dota_matches LIMIT 5000"
     cursor.execute(stmt)
 
     rows=cursor.fetchall()
     print("{0} matches found in database".format(len(rows)))
 
-    hml = HeroMaxLikelihood("prior_final.json")
+    hml = HeroMaxLikelihood(os.path.join("analytics", "prior_final.json"))
     total_win_mat, total_count_mat = hml.matches_to_summary(rows)
 
-    print(total_count_mat)
-    print("..............")
-    print(total_win_mat)
+    total_count_mat[total_count_mat<MATCH_CUTOFF]=np.nan
+    win_rate_position = pd.DataFrame(np.divide(total_win_mat, total_count_mat))
+    win_rate_position.index = meta.HERO_DICT.values()
+    win_rate_position.columns = ["P1", "P2", "P3", "P4", "P5"]
 
 if __name__ == "__main__":
     main()

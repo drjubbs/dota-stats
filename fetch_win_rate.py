@@ -8,7 +8,7 @@ import meta
 import sys
 import pandas as pd
 import datetime as dt
-import ujson as json
+import json
 
 
 def parse_records(rows):

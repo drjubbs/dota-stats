@@ -5,10 +5,11 @@ import sys
 import datetime as dt
 import argparse
 import os
+import json
 import pandas as pd
 import mariadb
 import numpy as np
-import ujson as json
+
 sys.path.append("..")
 from dotautil import MLEncoding # pylint: disable=import-error, wrong-import-position
 

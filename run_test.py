@@ -3,15 +3,15 @@
 import unittest
 import logging
 import os
+import json
 import numpy as np
-import ujson as json
 import mariadb
 
 import fetch
 import meta
 import db_util
 from dotautil import MatchSerialization, MLEncoding, Bitmask
-from analytics.winrate_position import HeroMaxLikelihood
+from win_rate_position import HeroMaxLikelihood
 
 # Globals
 BIGINT=9223372036854775808  # Max bitmask
@@ -153,8 +153,10 @@ class TestFetch(unittest.TestCase):
     def test_no_items(self):
         """Test no items detection"""
 
-        with open("./testing/no_items.json") as filename:
-            match=json.loads(filename.read())
+        file_handle = open("./testing/no_items.json")
+        txt = file_handle.read()
+        match = json.loads(txt)
+        file_handle.close()
 
         with self.assertRaises(Exception) as context:
             fetch.parse_match(match)
@@ -348,7 +350,7 @@ class TestMLEncoding(unittest.TestCase):
         wins = [1, 0, 1, 0, 1]
 
         _, _, _, x3_data = \
-                        MLEncoding.create_features(rad, dire, wins)
+                    MLEncoding.create_features(rad, dire, wins, verbose=False)
 
         # Convert to hero index from hero number
         rad_idx = []
@@ -388,7 +390,7 @@ class TestMLEncoding(unittest.TestCase):
             np.array([ 1.,  1.,  1.,  1., 0.])
         )))
 
-class TestWinratePosition(TestDB):
+class TestWinRatePosition(TestDB):
     """Test cases for winrate by position probability model"""
 
     def test_winrate_position(self):
