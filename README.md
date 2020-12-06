@@ -219,7 +219,15 @@ where `start_time` can be obtained from a Python shell to represent a few hours/
 
 # TODO
 
+- High Priority
+  
+  - Fix display of win rate vs. pick rate -- missing titles and formatting is off. Note that each skill level should have a different time range.
+  - For all "summary" statistics jobs, DAYS should be relative to most recent match in database to make this universal. Move this to a utility function somewhere.
+  - Move SQLAlchemy objects from `server.py` in `db_util.py`. Eventually the entire project should be moved over to SQLAlchemy.
+  - Implement win rate by position database write and modify front-end to display.
+  
 - General
+  
   - `db_util.py`: Add CLI features and ability to upgrade DB to create new table for win rate by position; add appropriate unit testing.
   - Protobuf: Include new fields for modeled roles (based on probability model), include GPM, match duration, and other useful information which might be needed for analytics. Include player IDs for future work to model skill level based on match statistics.
   - Bitmask implementation - need ability to search database for matches involving a specific hero.

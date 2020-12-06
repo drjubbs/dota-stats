@@ -1,11 +1,12 @@
+# -*- coding: utf-8 -*-
+"""Flask server to display analytics results"""
 import json
 import os
-import pandas as pd
 import datetime as dt
+import pandas as pd
 import pytz
 import plotly
 import plotly.graph_objs as go
-from plotly.subplots import make_subplots
 from flask import Flask, render_template
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.mysql import TINYINT
@@ -14,17 +15,22 @@ app = Flask(__name__)
 
 # Setup SQLAlchemy
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db_uri="mysql://{0}:{1}@{2}/{3}".format(
+DB_URI="mysql://{0}:{1}@{2}/{3}".format(
                 os.environ['DOTA_USERNAME'],
                 os.environ['DOTA_PASSWORD'],
                 os.environ["DOTA_HOSTNAME"],
                 os.environ['DOTA_DATABASE'],
                 )
-
-
-app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
+app.config['SQLALCHEMY_DATABASE_URI'] = DB_URI
 db = SQLAlchemy(app)
 
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
+
+# pylint: disable=no-member
+#----------------------------------------------------------------------------
+# SQLAlchemy Classes
+#----------------------------------------------------------------------------
 class Match(db.Model):
     """Base class for match results"""
     __tablename__ = 'dota_matches'
@@ -67,8 +73,23 @@ class FetchWinRate(db.Model):
     win_pct = db.Column(db.Float)
 
 
+class WinByPosition(db.Model):
+    """Win rates by position for all heroes"""
+    __tablename__ = 'win_by_position'
+
+    timestamp_hero_skill = db.Column(db.VARCHAR(128),
+                                        primary_key=True, nullable=False)
+    hero = db.Column(db.VARCHAR(64), nullable=False)
+    pos1 = db.Column(db.Float, nullable=True)
+    pos2 = db.Column(db.Float, nullable=True)
+    pos3 = db.Column(db.Float, nullable=True)
+    pos4 = db.Column(db.Float, nullable=True)
+    pos5 = db.Column(db.Float, nullable=True)
+
+# pylint: enable=no-member
+
 def get_health_metrics(days, timezone):
-    """Returns a Pandas dataframe summarizing number of matches processed 
+    """Returns a Pandas dataframe summarizing number of matches processed
     over an interval of days."""
 
     # Start with empty dataframe, by hour
@@ -76,7 +97,7 @@ def get_health_metrics(days, timezone):
 
     utc_offset=local_tz.utcoffset(dt.datetime.now())
     utc_hour=int(utc_offset.total_seconds()/3600)
- 
+
     now=dt.datetime.utcnow()
     now=now+utc_offset
     now_hour=dt.datetime(now.year, now.month, now.day, now.hour, 0, 0)
@@ -86,9 +107,9 @@ def get_health_metrics(days, timezone):
     times=["{0}{1:+03d}00".format(t,utc_hour) for t in times]
 
     df_summary1=pd.DataFrame(index=times, data={
-                                            1 : [0]*len(times), 
-                                            2 : [0]*len(times), 
-                                            3 : [0]*len(times), 
+                                            1 : [0]*len(times),
+                                            2 : [0]*len(times),
+                                            3 : [0]*len(times),
                                           })
 
     # Fetch from database
@@ -120,7 +141,7 @@ def get_health_metrics(days, timezone):
         'skill' : skills,
         'count' : rec_count
         })
-    df_summary2=df_summary2.pivot(index='date_hour', 
+    df_summary2=df_summary2.pivot(index='date_hour',
                                   columns='skill', values='count').\
                                           fillna(0).\
                                           astype('int32').\
@@ -131,19 +152,19 @@ def get_health_metrics(days, timezone):
     df_summary=df_summary[[1,2,3]]
     df_summary.columns=['normal', 'high', 'very_high']
     df_summary=df_summary.sort_index(ascending=False)
-    
+
     # For summary table
     rows=zip(df_summary.index.values,
-             df_summary['normal'].values, 
-             df_summary['high'].values, 
+             df_summary['normal'].values,
+             df_summary['high'].values,
              df_summary['very_high'].values)
 
     # For plot
     fig = go.Figure(data=[
             go.Bar(name='Normal',
-                   x=df_summary.index.values, 
+                   x=df_summary.index.values,
                    y=df_summary['normal']),
-            go.Bar(name='High', 
+            go.Bar(name='High',
                    x=df_summary.index.values,
                    y=df_summary['high']),
             go.Bar(name='Very High',
@@ -157,6 +178,7 @@ def get_health_metrics(days, timezone):
 
 @app.route('/')
 def status():
+    """Index page for server, currently contains everything on the site"""
 
     #---------------------------------------------------------------
     # Win rate by skill level
@@ -164,40 +186,33 @@ def status():
 
     df_sql=pd.read_sql_table("fetch_win_rate",db.engine)
     df_sql['skill']=[int(t.split("_")[-1]) for t in df_sql['hero_skill']]
-   
-    radiant_vs_dire=[]
-    fig=make_subplots(
-            rows=1,
-            cols=3,
-            subplot_titles=("Normal","High","Very High"))
 
-    counter=1
+    radiant_vs_dire=[]
+    pick_vs_win={}
+
     for skill in list(set(df_sql['skill'])):
         df_sub=df_sql[df_sql['skill']==skill]
-        radiant_vs_dire.append( 
+        radiant_vs_dire.append(
                 100*(df_sub.sum()['radiant_win']/\
                     (df_sub.sum()['radiant_total'])))
-    
-        time_range=set(df_sub['time_range']).pop()
-        
-        fig.add_trace(go.Scatter(
-                            x=df_sub['total'].values, 
-                            y=df_sub['win_pct'].values, 
-                            text=df_sub['hero'].values,
-                            mode='markers+text',
-                            textposition='top center'),
-                          row=1,
-                          col=counter)
-        counter=counter+1
 
-    title="{0} UTC".format(time_range)
-    fig.update_layout(title=title,
-                     height=600,
-                     width=1600,
-                     showlegend=False)
-    fig.update_xaxes({'title' : 'Number of Games'})
-    fig.update_yaxes({'title' : 'Win %'})
-    win_rate_figs=json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+        pick_vs_win[skill] = go.Figure(
+            go.Scatter(
+                x=df_sub['total'].values,
+                y=df_sub['win_pct'].values,
+                text=df_sub['hero'].values,
+                mode='markers+text',
+                textposition='top center'))
+
+        pick_vs_win[skill].update_layout(title="Skill {0}".format(skill),
+                     height=700,
+                     width=700)
+        pick_vs_win[skill].update_xaxes({'title' : 'Number of Games'})
+        pick_vs_win[skill].update_yaxes({'title' : 'Win %'})
+
+    win_rate_1 = json.dumps(pick_vs_win[1], cls=plotly.utils.PlotlyJSONEncoder)
+    win_rate_2 = json.dumps(pick_vs_win[2], cls=plotly.utils.PlotlyJSONEncoder)
+    win_rate_3 = json.dumps(pick_vs_win[3], cls=plotly.utils.PlotlyJSONEncoder)
 
     #---------------------------------------------------------------
     # Health metrics
@@ -206,7 +221,9 @@ def status():
     rec_plot3, rec_count_table = get_health_metrics(3, 'US/Eastern')
     return render_template("index.html",
                             radiant_vs_dire=radiant_vs_dire,
-                            win_rate_figs=win_rate_figs,
-                            rec_count_table=rec_count_table, 
+                            win_rate_1=win_rate_1,
+                            win_rate_2=win_rate_2,
+                            win_rate_3=win_rate_3,
+                            rec_count_table=rec_count_table,
                             rec_plot3=rec_plot3,
                             rec_plot14=rec_plot14,)
