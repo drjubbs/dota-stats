@@ -137,7 +137,7 @@ I use a combination of Nginx, Let's Encrypt, and Gunicorn to host the Flask appl
 ```
 server {
         listen 443 ssl;
-        server_name huskarmetrics.freemyip.com;
+        server_name server.com;
         ssl_certificate     /etc/letsencrypt/live/server.com/fullchain.pem;
         ssl_certificate_key /etc/letsencrypt/live/server.com/privkey.pem;
         ssl_protocols       TLSv1 TLSv1.1 TLSv1.2;
@@ -154,8 +154,8 @@ server {
         listen 80 default_server;
         listen [::]:80 default_server;
         server_name server.com;
-
-	# Intercept Let's Encrypt handshake, this must occur on port 80
+		
+		# Intercept Let's Encrypt handshake, this must occur on port 80
         location /.well-known {
             alias /var/www/letsencrypt/.well-known;
         }
@@ -226,6 +226,7 @@ where `start_time` can be obtained from a Python shell to represent a few hours/
   - Replace other instances of "INSERT INTO .... DUPLICATE KEY" with "REPLACE INTO".
   - Reversion requirements.txt to the newest distro (Ubuntu 20.04 LTS).
   - Clean-up/linting of all code.
+  
 - Backend
   - Look at ThreadPooling code in fetch.py - it's probably possible to start the executor at a higher level to prevent the continuous creation and destruction of thread pools.
   - Check logs and /errors for malformed responses I continue be getting from the API -- Grep "ERROR" and "Traceback" in production logs.
@@ -233,7 +234,13 @@ where `start_time` can be obtained from a Python shell to represent a few hours/
   - Document fetch logic as well as filtering algorithms being used.
   - In logs, look for `num_results (try` . How often is this failing? It appears Valve's API often returns no records at times, perhaps due to some error with a load balancer and a misconfigured node?
   - In logs get a count of `URLError`, `HTTPError`, etc... and adjust number of threads accordingly.
+  
+- Web Server
+  
+  - Pick rate/win rate chart -- time range will be different for each skill level, modify accordingly...
+  
 - Data Analysis / Modeling
+  
   - `generate_prior.py`: Add command line arguments and modify to work using dates instead of record counts.
   - `winrate_position.py`: Add command line arguments and ability to write to new database table. CLI arguments should include a date range. Add appropriate unit testing.
   - `win_analysis` needs to be extended to include hero vs. enemy good/bad match-ups. This is currently waiting on bit masking for heroes as each hero will need to be done independently due to memory constraints.
