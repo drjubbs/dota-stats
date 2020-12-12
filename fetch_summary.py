@@ -35,7 +35,7 @@ def main():
     end_time=int(dt.datetime.utcnow().timestamp())
 
     # Connect to database and fetch records
-    conn = mariadb.connect(
+    conn = mariaBase.connect(
         user=os.environ['DOTA_USERNAME'],
         password=os.environ['DOTA_PASSWORD'],
         host=os.environ['DOTA_HOSTNAME'],

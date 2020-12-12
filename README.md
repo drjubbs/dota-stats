@@ -56,7 +56,7 @@ source env/bin/activate
 
 Proceed to follow instructions to setup MariaDB on your platform.   You may need to allow remote access if your analysis machine is different from your database, this usually involves setting the `bind-address` in MariaDB to `0.0.0.0` or commenting out that line.
 
-Note that using MyISAM (vs. InnoDB) as the engine on a Raspberry PI/small virtual machine had a profound impact on performance, this may not be true on all platforms. To reduce memory footprint, the I found the following tweaks to MariaDB defaults to be helpful (`/etc/mysql/mariadb.conf.d/50-server.cnf`):
+Note that using MyISAM (vs. InnoDB) as the engine on a Raspberry PI/small virtual machine had a profound impact on performance, this may not be true on all platforms. To reduce memory footprint, the I found the following tweaks to MariaDB defaults to be helpful (`/etc/mysql/mariaBase.conf.d/50-server.cnf`):
 
 ```
 [mysqld]
@@ -137,7 +137,7 @@ I use a combination of Nginx, Let's Encrypt, and Gunicorn to host the Flask appl
 ```
 server {
         listen 443 ssl;
-        server_name huskarmetrics.freemyip.com;
+        server_name server.com;
         ssl_certificate     /etc/letsencrypt/live/server.com/fullchain.pem;
         ssl_certificate_key /etc/letsencrypt/live/server.com/privkey.pem;
         ssl_protocols       TLSv1 TLSv1.1 TLSv1.2;
@@ -154,8 +154,8 @@ server {
         listen 80 default_server;
         listen [::]:80 default_server;
         server_name server.com;
-
-	# Intercept Let's Encrypt handshake, this must occur on port 80
+		
+		# Intercept Let's Encrypt handshake, this must occur on port 80
         location /.well-known {
             alias /var/www/letsencrypt/.well-known;
         }
@@ -219,13 +219,22 @@ where `start_time` can be obtained from a Python shell to represent a few hours/
 
 # TODO
 
+- High Priority
+  
+  - Fix display of win rate vs. pick rate -- missing titles and formatting is off. Note that each skill level should have a different time range.
+  - For all "summary" statistics jobs, DAYS should be relative to most recent match in database to make this universal. Move this to a utility function somewhere.
+  - Move SQLAlchemy objects from `server.py` in `db_util.py`. Eventually the entire project should be moved over to SQLAlchemy.
+  - Implement win rate by position database write and modify front-end to display.
+  
 - General
+  
   - `db_util.py`: Add CLI features and ability to upgrade DB to create new table for win rate by position; add appropriate unit testing.
   - Protobuf: Include new fields for modeled roles (based on probability model), include GPM, match duration, and other useful information which might be needed for analytics. Include player IDs for future work to model skill level based on match statistics.
   - Bitmask implementation - need ability to search database for matches involving a specific hero.
   - Replace other instances of "INSERT INTO .... DUPLICATE KEY" with "REPLACE INTO".
   - Reversion requirements.txt to the newest distro (Ubuntu 20.04 LTS).
   - Clean-up/linting of all code.
+  
 - Backend
   - Look at ThreadPooling code in fetch.py - it's probably possible to start the executor at a higher level to prevent the continuous creation and destruction of thread pools.
   - Check logs and /errors for malformed responses I continue be getting from the API -- Grep "ERROR" and "Traceback" in production logs.
@@ -233,7 +242,13 @@ where `start_time` can be obtained from a Python shell to represent a few hours/
   - Document fetch logic as well as filtering algorithms being used.
   - In logs, look for `num_results (try` . How often is this failing? It appears Valve's API often returns no records at times, perhaps due to some error with a load balancer and a misconfigured node?
   - In logs get a count of `URLError`, `HTTPError`, etc... and adjust number of threads accordingly.
+  
+- Web Server
+  
+  - Pick rate/win rate chart -- time range will be different for each skill level, modify accordingly...
+  
 - Data Analysis / Modeling
+  
   - `generate_prior.py`: Add command line arguments and modify to work using dates instead of record counts.
   - `winrate_position.py`: Add command line arguments and ability to write to new database table. CLI arguments should include a date range. Add appropriate unit testing.
   - `win_analysis` needs to be extended to include hero vs. enemy good/bad match-ups. This is currently waiting on bit masking for heroes as each hero will need to be done independently due to memory constraints.

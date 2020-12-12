@@ -9,9 +9,11 @@ import mariadb
 
 import fetch
 import meta
+os.environ['DOTA_DATABASE'] = os.environ['DOTA_DATABASE']+"_dev"
 import db_util
 from dotautil import MatchSerialization, MLEncoding, Bitmask
 from win_rate_position import HeroMaxLikelihood
+from server.server import db
 
 # Globals
 BIGINT=9223372036854775808  # Max bitmask
@@ -47,11 +49,11 @@ class TestDB(unittest.TestCase):
             user=os.environ['DOTA_USERNAME'],
             password=os.environ['DOTA_PASSWORD'],
             host=os.environ['DOTA_HOSTNAME'],
-            database=os.environ['DOTA_DATABASE']+"_dev")
+            database=os.environ['DOTA_DATABASE'])
         cursor = self.conn.cursor()
 
         # Create initial database
-        db_util.create_version_001(self.conn)
+        db_util.create_version_001()
 
         # Populate tables
         filename = os.path.join("testing", "test_database.txt")
@@ -60,6 +62,9 @@ class TestDB(unittest.TestCase):
         for stmt in db_txt.split("\n"):
             cursor.execute(stmt)
 
+        # Upgrade
+        db_util.update_version_002()
+        self.assertEqual(db_util.get_version(), "002")
 
     def test_dummy(self):
         """Dummy routine to ensure class setUp and tearDown are called.
@@ -71,10 +76,8 @@ class TestDB(unittest.TestCase):
 
     def tearDown(self):
         """Delete all temporary tables"""
-
-        cursor = self.conn.cursor()
-        cursor.execute("DROP TABLE IF EXISTS dota_matches;")
-        self.conn.commit()
+        db.session.close()
+        db.drop_all()
 
 
 class TestProtobuf(unittest.TestCase):
@@ -396,12 +399,14 @@ class TestWinRatePosition(TestDB):
     def test_winrate_position(self):
         """Test assignment of heroes to positions and winrates"""
 
-        # Fetch data from testing DB
-        cursor=self.conn.cursor()
-        stmt="SELECT match_id, radiant_heroes, dire_heroes, radiant_win "
-        stmt+="FROM dota_matches"
-        cursor.execute(stmt)
-        rows=cursor.fetchall()
+        rows = []
+        for match in Match.query.all():
+            rows.append((
+                match.match_id,
+                match.radiant_heroes,
+                match.dire_heroes,
+                match.radiant_win
+            ))
 
         hml = HeroMaxLikelihood(os.path.join("analytics", "prior_final.json"))
         total_win_mat, total_count_mat = hml.matches_to_summary(rows)

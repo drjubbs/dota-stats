@@ -3,94 +3,172 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
+
+<!-- Bootstap 4 -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+
+<!-- Plotly -->
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.6/d3.min.js"></script>
+
+<!-- DataTables -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.10.22/css/jquery.dataTables.min.css">
+<script src="https://cdn.datatables.net/1.10.22/js/jquery.dataTables.min.js"></script>
+
+<!-- Custom -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/huskarmetrics.css') }}">
+
 <title>Huskarmetrics: DOTA2 Data Analytics by a Low MMR Hack</title>
 </head>
-  <div class="jumbotron p-4 p-md-5 text-white rounded bg-dark">
-    <div class="col-md-6 px-0">
-      <h1 class="display-4 font-italic">Huskarmetrics</h1>
-      <p class="lead my-3">A low MMR player's take on DOTA2 analytics.</p>
+
+<body>
+
+  <nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
+    <a class="navbar-brand" href="#">HuskarMetrics</a>
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarsExampleDefault" aria-controls="navbarsExampleDefault" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarsExampleDefault">
+      <ul class="navbar-nav mr-auto">
+        <li class="nav-item active">
+          <a class="nav-link" href="#">Overall</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#">Position </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#">Health</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#">About</a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+<div class="container-width">
+  <div class="jumbotron">
+    <div class="container">
+      <h2 class="display-4">Overall Win Rate vs. Pick Rate</h2>
+      <p>Heroes with high win rate but low pick rate are often situational.</p>      
     </div>
   </div>
-<body>
-<div class="container-fluid">
-
-
-<h2>Radiant vs. Dire</h2>
-
-<div class="container w-25">
-<table class="table">
-  <thead>
-    <tr>
-	    <th scope="col">Skill</th>
-	    <th scope="col">Radiant Win %</th>
-    </tr>
-  </thead>
-	
-  <tr>
-    <td>Normal</td>
-     <td>{{ "%7.2f" | format(radiant_vs_dire[0])}}</td>
-  </tr>
-  <tr>
-    <td>High</td>
-    <td>{{ "%7.2f" | format(radiant_vs_dire[1])}}</td>
-  </tr>
-  <tr>
-    <td>Very High</td>
-    <td>{{ "%7.2f" | format(radiant_vs_dire[2])}}</td>
-  </tr>
-</table>
 </div>
- 
-<h2>Win Rate vs. Pick Rate</h2>
-<div class="chart" id="normal_skill">
-    <script>
-	var graphs ={{ win_rate_figs | safe}};
-	Plotly.plot('normal_skill',graphs,{});
-    </script>
-</div>
+<div class="container">
+  <div class="row">
+    <div class="col-md-1">&nbsp;</div>
+    <div class="col-md-5">
+      <div class="chart" id="normal_skill">
+        <script>
+          var graphs ={{ win_rate_1 | safe}};
+          Plotly.plot('normal_skill',graphs,{});
+        </script>
+      </div>
+    </div>
+    <div class="col-md-5">      
+      <div class="chart" id="high_skill">
+        <script>
+          var graphs ={{ win_rate_2 | safe}};
+          Plotly.plot('high_skill',graphs,{});
+        </script>
+      </div>
+    </div>
+    <div class="col-md-1">&nbsp;</div>
+  </div>
+  <div class="row">
+    <div class="col-md-1">&nbsp;</div>
+    <div class="col-md-5">      
+      <div class="chart" id="very_high_skill">
+        <script>
+          var graphs ={{ win_rate_3 | safe}};
+          Plotly.plot('very_high_skill',graphs,{});
+        </script>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <h2 class="text-center">Radiant vs. Dire</h2>
+      <table id="radiant_dire" class="table table-sm table-hover">
+        <thead>
+          <tr>
+            <th scope="col">Skill</th>
+            <th scope="col">Radiant Win %</th>
+          </tr>
+        </thead>
+        <tr>
+          <td>Normal</td>
+          <td>{{ "%7.2f" | format(radiant_vs_dire[0])}}</td>
+        </tr>
+        <tr>
+          <td>High</td>
+          <td>{{ "%7.2f" | format(radiant_vs_dire[1])}}</td>
+        </tr>
+        <tr>
+          <td>Very High</td>
+          <td>{{ "%7.2f" | format(radiant_vs_dire[2])}}</td>
+        </tr>
+      </table>      
 
-<h2>Overall Service Health</h2>
-<p>All times reported in US/Eastern time zone.</p>
+        <script>
+          $(document).ready( function () {
+            $('#radiant_dire').DataTable({
+              "paging" : false,
+              "info" : false,
+              "searching" : false
+            });
+          } );
+        </script>        
+      </div>
+      <div class="col-md-3">&nbsp;</div>
+    </div>
+  </div>
+  
+  <div class="container-width">
+    <div class="jumbotron">
+      <div class="container">
+        <h2 class="display-4">Overall Service Health</h2>
+        <p>All times reported in US/Eastern time zone.</p>      
+      </div>
+    </div>
 
-<div class="chart" id="bargraph3">
-    <script>
-        var graphs = {{rec_plot3 | safe}};
-        Plotly.plot('bargraph3',graphs,{});
-    </script>
-</div>
+    <div class="row">
+      <div class="col-md-8">  
+        <div class="chart" id="bargraph3">
+            <script>
+                var graphs = {{rec_plot3 | safe}};
+                Plotly.plot('bargraph3',graphs,{});
+            </script>
+        </div>
 
-<div class="chart" id="bargraph14">
-    <script>
-        var graphs = {{rec_plot14 | safe}};
-        Plotly.plot('bargraph14',graphs,{});
-    </script>
-</div>
+        <div class="chart" id="bargraph14">
+            <script>
+                var graphs = {{rec_plot14 | safe}};
+                Plotly.plot('bargraph14',graphs,{});
+            </script>
+        </div>
 
-<table class="table">
-  <thead>
-    <tr>
-      <th scope="col">Date/Hour</th>
-      <th scope="col">Normal</th>
-      <th scope="col">High</th>
-      <th scope="col">Very High</th>
-    </tr>
-  </thead>
-{% for row in rec_count_table %}
-    <tr>
-	    <td>{{ row[0] }}</td>
-	    <td>{{ row[1] }}</td>
-	    <td>{{ row[2] }}</td>
-	    <td>{{ row[3] }}</td>
-    </tr>
-{% endfor %}
-</table>
-</div>
-
-<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js" integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN" crossorigin="anonymous"></script>
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js" integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV" crossorigin="anonymous"></script>
+        <table class="table">
+          <thead>
+            <tr>
+              <th scope="col">Date/Hour</th>
+              <th scope="col">Normal</th>
+              <th scope="col">High</th>
+              <th scope="col">Very High</th>
+            </tr>
+          </thead>
+        {% for row in rec_count_table %}
+            <tr>
+              <td>{{ row[0] }}</td>
+              <td>{{ row[1] }}</td>
+              <td>{{ row[2] }}</td>
+              <td>{{ row[3] }}</td>
+            </tr>
+        {% endfor %}
+        </table>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

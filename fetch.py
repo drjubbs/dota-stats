@@ -116,7 +116,7 @@ def fetch_url(url):
             if http_e.reason.upper()=='FORBIDDEN':
                 raise ValueError("Forbidden - Check Steam API key")
             else:
-                log.error("error.HTTPError  %s", http_e.msg)
+                log.error("error.HTTPError  %s %s", http_e.msg, url)
                 time.sleep(np.random.uniform(0.5,1.5))
 
         except error.URLError as url_e:
@@ -414,7 +414,7 @@ def usage():
 
 def get_database_connection():
     """Return a connection to the database"""
-    conn = mariadb.connect(
+    conn = mariaBase.connect(
         user=os.environ['DOTA_USERNAME'],
         password=os.environ['DOTA_PASSWORD'],
         host=os.environ['DOTA_HOSTNAME'],
