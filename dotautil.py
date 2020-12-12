@@ -9,7 +9,7 @@ See individual methods for more information.
 """
 
 import numpy as np
-from match import match_pb
+from protobuf.match.pb_pb2 import *
 import meta
 
 class MatchSerialization:
@@ -21,7 +21,7 @@ class MatchSerialization:
 
         rad_list=[]
         for rad_hero in rad_heroes:
-            rad_list.append(match_pb.Hero(
+            rad_list.append(Hero(
                 hero=rad_hero,
                 items=items[str(rad_hero)],
                 gold_spent=gold[str(rad_hero)]
@@ -29,13 +29,13 @@ class MatchSerialization:
 
         dire_list=[]
         for dire_hero in dire_heroes:
-            dire_list.append(match_pb.Hero(
+            dire_list.append(Hero(
                 hero=dire_hero,
                 items=items[str(dire_hero)],
                 gold_spent=gold[str(dire_hero)]
             ))
 
-        match_info=match_pb.MatchInfo(
+        match_info=MatchInfo(
             radiant_heroes=rad_list,
             dire_heroes=dire_list,
         )
