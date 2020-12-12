@@ -38,7 +38,7 @@ def main():
         parser.error("Bad skill level %d" % opts.skill)
 
     # Database fetch
-    conn = mariadb.connect(
+    conn = mariaBase.connect(
         user=os.environ['DOTA_USERNAME'],
         password=os.environ['DOTA_PASSWORD'],
         host=os.environ['DOTA_HOSTNAME'],

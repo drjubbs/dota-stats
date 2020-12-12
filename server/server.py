@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Flask server to display analytics results"""
+"""Flask server to display analytics results, uses a common instance of 
+SQLAlchemy to deal with concurrency.
+"""
 import json
 import os
 import datetime as dt
@@ -9,84 +11,19 @@ import plotly
 import plotly.graph_objs as go
 from flask import Flask, render_template
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.dialects.mysql import TINYINT
+
 
 app = Flask(__name__)
-
-# Setup SQLAlchemy
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 DB_URI="mysql://{0}:{1}@{2}/{3}".format(
-                os.environ['DOTA_USERNAME'],
-                os.environ['DOTA_PASSWORD'],
-                os.environ["DOTA_HOSTNAME"],
-                os.environ['DOTA_DATABASE'],
-                )
+            os.environ['DOTA_USERNAME'],
+            os.environ['DOTA_PASSWORD'],
+            os.environ["DOTA_HOSTNAME"],
+            os.environ['DOTA_DATABASE'],
+            )
 app.config['SQLALCHEMY_DATABASE_URI'] = DB_URI
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
-
-# pylint: disable=no-member
-#----------------------------------------------------------------------------
-# SQLAlchemy Classes
-#----------------------------------------------------------------------------
-class Match(db.Model):
-    """Base class for match results"""
-    __tablename__ = 'dota_matches'
-
-    match_id = db.Column(db.BigInteger, primary_key=True)
-    start_time = db.Column(db.BigInteger)
-    radiant_heroes = db.Column(db.CHAR(32))
-    dire_heroes = db.Column(db.CHAR(32))
-    radiant_win = db.Column(TINYINT)
-    api_skill = db.Column(db.Integer)
-    items = db.Column(db.VARCHAR(1024))
-    gold_spent = db.Column(db.VARCHAR(1024))
-
-    def __repr__(self):
-        return '<Match %r>' % self.match_id
-
-class FetchSummary(db.Model):
-    """Base class for fetch summary stats"""
-    __tablename__ = 'fetch_summary'
-    date_hour_skill = db.Column(db.CHAR(32), primary_key=True)
-    skill = db.Column(db.Integer)
-    rec_count = db.Column(db.Integer)
-
-class FetchWinRate(db.Model):
-    """Base class for fetch_win_rate object."""
-
-    __tablename__="fetch_win_rate"
-    hero_skill = db.Column(db.CHAR(128), primary_key=True)
-    skill = db.Column(TINYINT)
-    hero = db.Column(db.CHAR(128))
-    time_range = db.Column(db.CHAR(128))
-    radiant_win = db.Column(db.Integer)
-    radiant_total = db.Column(db.Integer)
-    radiant_win_pct = db.Column(db.Float)
-    dire_win = db.Column(db.Integer)
-    dire_total = db.Column(db.Integer)
-    dire_win_pct = db.Column(db.Float)
-    win = db.Column(db.Integer)
-    total = db.Column(db.Integer)
-    win_pct = db.Column(db.Float)
-
-
-class WinByPosition(db.Model):
-    """Win rates by position for all heroes"""
-    __tablename__ = 'win_by_position'
-
-    timestamp_hero_skill = db.Column(db.VARCHAR(128),
-                                        primary_key=True, nullable=False)
-    hero = db.Column(db.VARCHAR(64), nullable=False)
-    pos1 = db.Column(db.Float, nullable=True)
-    pos2 = db.Column(db.Float, nullable=True)
-    pos3 = db.Column(db.Float, nullable=True)
-    pos4 = db.Column(db.Float, nullable=True)
-    pos5 = db.Column(db.Float, nullable=True)
-
-# pylint: enable=no-member
 
 def get_health_metrics(days, timezone):
     """Returns a Pandas dataframe summarizing number of matches processed
@@ -117,7 +54,7 @@ def get_health_metrics(days, timezone):
     begin=str(begin)+"_0"
     stmt="select date_hour_skill, rec_count from fetch_summary "
     stmt+="where date_hour_skill>='{}'"
-    rows=pd.read_sql_query(stmt.format(begin), db.engine)
+    rows=pd.read_sql_query(stmt.format(begin), Base.engine)
 
     date_hour_skill = rows['date_hour_skill'].tolist()
     rec_count = rows['rec_count'].tolist()
@@ -184,7 +121,7 @@ def status():
     # Win rate by skill level
     #---------------------------------------------------------------
 
-    df_sql=pd.read_sql_table("fetch_win_rate",db.engine)
+    df_sql=pd.read_sql_table("fetch_win_rate",Base.engine)
     df_sql['skill']=[int(t.split("_")[-1]) for t in df_sql['hero_skill']]
 
     radiant_vs_dire=[]
@@ -227,3 +164,7 @@ def status():
                             rec_count_table=rec_count_table,
                             rec_plot3=rec_plot3,
                             rec_plot14=rec_plot14,)
+
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)

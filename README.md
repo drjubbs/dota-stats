@@ -56,7 +56,7 @@ source env/bin/activate
 
 Proceed to follow instructions to setup MariaDB on your platform.   You may need to allow remote access if your analysis machine is different from your database, this usually involves setting the `bind-address` in MariaDB to `0.0.0.0` or commenting out that line.
 
-Note that using MyISAM (vs. InnoDB) as the engine on a Raspberry PI/small virtual machine had a profound impact on performance, this may not be true on all platforms. To reduce memory footprint, the I found the following tweaks to MariaDB defaults to be helpful (`/etc/mysql/mariadb.conf.d/50-server.cnf`):
+Note that using MyISAM (vs. InnoDB) as the engine on a Raspberry PI/small virtual machine had a profound impact on performance, this may not be true on all platforms. To reduce memory footprint, the I found the following tweaks to MariaDB defaults to be helpful (`/etc/mysql/mariaBase.conf.d/50-server.cnf`):
 
 ```
 [mysqld]

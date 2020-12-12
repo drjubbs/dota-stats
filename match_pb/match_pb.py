@@ -111,21 +111,21 @@ _MATCHINFO.fields_by_name['radiant_heroes'].message_type = _HERO
 _MATCHINFO.fields_by_name['dire_heroes'].message_type = _HERO
 DESCRIPTOR.message_types_by_name['Hero'] = _HERO
 DESCRIPTOR.message_types_by_name['MatchInfo'] = _MATCHINFO
-_sym_db.RegisterFileDescriptor(DESCRIPTOR)
+_sym_Base.RegisterFileDescriptor(DESCRIPTOR)
 
 Hero = _reflection.GeneratedProtocolMessageType('Hero', (_message.Message,), dict(
   DESCRIPTOR = _HERO,
   __module__ = 'match.pb_pb2'
   # @@protoc_insertion_point(class_scope:Hero)
   ))
-_sym_db.RegisterMessage(Hero)
+_sym_Base.RegisterMessage(Hero)
 
 MatchInfo = _reflection.GeneratedProtocolMessageType('MatchInfo', (_message.Message,), dict(
   DESCRIPTOR = _MATCHINFO,
   __module__ = 'match.pb_pb2'
   # @@protoc_insertion_point(class_scope:MatchInfo)
   ))
-_sym_db.RegisterMessage(MatchInfo)
+_sym_Base.RegisterMessage(MatchInfo)
 
 
 _HERO.fields_by_name['items']._options = None

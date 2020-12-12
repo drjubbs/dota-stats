@@ -9,7 +9,7 @@ See individual methods for more information.
 """
 
 import numpy as np
-from match import match_pb
+from match_pb import match_pb
 import meta
 
 class MatchSerialization:

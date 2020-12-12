@@ -9,14 +9,11 @@ import mariadb
 
 import fetch
 import meta
-# Patch in the dev database, needed prior to import of SQLAlchemy
-# pylint: disable=wrong-import-position
 os.environ['DOTA_DATABASE'] = os.environ['DOTA_DATABASE']+"_dev"
-# pylint: enable=wrong-import-position
 import db_util
 from dotautil import MatchSerialization, MLEncoding, Bitmask
 from win_rate_position import HeroMaxLikelihood
-from server.server import db, Match
+from server.server import db
 
 # Globals
 BIGINT=9223372036854775808  # Max bitmask
