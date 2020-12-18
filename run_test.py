@@ -28,7 +28,7 @@ class TestDumpBug(unittest.TestCase):
         """Dump problematic API result to JSON"""
 
         if DUMP_BUG:
-            match_id = "5710857053"
+            match_id = "5746542393"
             match = fetch.fetch_match(match_id, 0)
             with open("./testing/{}.json".format(match_id), "w") as filename:
                 filename.write(json.dumps(match, indent=4))
