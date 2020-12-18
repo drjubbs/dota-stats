@@ -22,7 +22,7 @@ import meta
 #----------------------------------------------
 # Globals
 #----------------------------------------------
-NUM_THREADS=1        # Set to 1 for single threaded execution
+NUM_THREADS=8        # Set to 1 for single threaded execution
 PAGES_PER_HERO=10
 MIN_MATCH_LEN=1200
 INITIAL_HORIZON=1    # Days to load from database on start-up
