@@ -8,8 +8,9 @@ the script runs.
 import os
 import datetime as dt
 import sys
-import mariadb
 import pandas as pd
+from server.server import db
+from db_util import Match, FetchSummary
 
 def usage():
     """Display command line help"""
@@ -34,44 +35,32 @@ def main():
     start_time=int((dt.datetime.utcnow()-dt.timedelta(days=horizon_days)).timestamp())
     end_time=int(dt.datetime.utcnow().timestamp())
 
-    # Connect to database and fetch records
-    conn = mariaBase.connect(
-        user=os.environ['DOTA_USERNAME'],
-        password=os.environ['DOTA_PASSWORD'],
-        host=os.environ['DOTA_HOSTNAME'],
-        database=os.environ['DOTA_DATABASE'])
-    cursor=conn.cursor()
-
-    stmt="SELECT start_time, match_id, api_skill "
-    stmt+="FROM dota_matches WHERE start_time>={0} and start_time<={1};"
-    stmt=stmt.format(start_time, end_time)
-    print(stmt)
-
-    cursor.execute(stmt)
-    rows=cursor.fetchall()
-    print("Records: {}".format(len(rows)))
+    results = db.session.query(Match).\
+                    filter(Match.start_time>=start_time).\
+                    filter(Match.start_time<=end_time)
+    print("Records: {}".format(results.count()))
+    rows=results.all()
 
     # Round off timestamps to the nearest hour, create data frame and aggregate on counts
-    times=[dt.datetime.fromtimestamp(t[0]).strftime("%Y-%m-%dT%H:00") for t in rows]
+    times=[dt.datetime.fromtimestamp(t.start_time).strftime("%Y-%m-%dT%H:00") for t in rows]
 
-    date_hour=[dt.datetime.strptime(t,"%Y-%m-%dT%H:%M").timestamp() for t in times]
-    match_ids=[t[1] for t in rows]
-    skills=[t[2] for t in rows]
+    date_hour = [dt.datetime.strptime(t,"%Y-%m-%dT%H:%M").timestamp() for t in times]
+    match_ids = [t.match_id for t in rows]
+    skills = [t.api_skill for t in rows]
 
     df_matches=pd.DataFrame({'date_hour' : date_hour, 'skill': skills, 'match_ids' : match_ids})
-
     summary=df_matches.groupby(["date_hour","skill"]).count()
 
     # Write to database, overwriting old records
     for idx,row in summary.iterrows():
-        stmt="INSERT INTO fetch_summary (date_hour_skill,rec_count) VALUES "
-        stmt+="(?,?) ON DUPLICATE KEY UPDATE rec_count=(?)"
-        cursor.execute(stmt,(
-                "{0:10d}_{1}".format(int(idx[0]),int(idx[1])),
-                int(row['match_ids']),
-                int(row['match_ids'])))
 
-    conn.close()
+        fetch = FetchSummary()
+        fetch.date_hour_skill = "{0:10d}_{1}".format(int(idx[0]),int(idx[1]))
+        fetch.rec_count = row['match_ids']
+
+        db.session.merge(fetch)
+
+    db.session.commit()
 
 if __name__ == "__main__":
     main()

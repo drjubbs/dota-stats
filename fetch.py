@@ -3,6 +3,25 @@
 
 Fetches, parses, and puts matches into MariaDB using steam API. This script
 is usually run using `crontab` and `flock` on a regular basis.
+
+To avoid duplicate data pulls, on loading, creates a dictionary of already
+fetched matches within a time horizon. The main routine creates a
+ThreadPoolExecutor which is used to parallelize data pulls and process.
+The main routine calls `fetch_matches`, which uses the `GetMatchHistory`
+endpoint to fetch recent matches for a specified `hero` and `skill` level.
+This continues in a loop until no more matches are found.
+
+The matches IDs are passed in the `process_matches` along with some metadata
+and the executor. The internal dictionary is updated to prevent "re-pulls" of
+matches. `process_matches` calls `process_match` in either a single thread or
+multiple threads depending on the multithreading setup. This is point at which
+the process is parallelized. `process_match` calls `fetch_match` to grab a
+single match from the API, parses the output in `parse_match`, and returns.
+`parse_match` is where filtering conditions are applied. A call is made to
+`parse_players` which handles that subset of the match info.
+
+Control is returned to `process_matches` and data is written into database
+in `write_matches` if valid matches still exist.
 """
 import time
 import logging
@@ -16,8 +35,9 @@ from concurrent import futures
 import http.client
 import datetime as dt
 import numpy as np
-import mariadb
 import meta
+from db_util import Match, FetchHistory
+from server.server import db
 
 #----------------------------------------------
 # Globals
@@ -25,7 +45,7 @@ import meta
 NUM_THREADS=8        # Set to 1 for single threaded execution
 PAGES_PER_HERO=10
 MIN_MATCH_LEN=1200
-INITIAL_HORIZON=1    # Days to load from database on start-up
+INITIAL_HORIZON=3    # Days to load from database on start-up
 CTX=ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
 
 # Globals used in multi-threading
@@ -114,7 +134,8 @@ def fetch_url(url):
             # Don't enter the wait loop if the server rejected our
             # key outright.
             if http_e.reason.upper()=='FORBIDDEN':
-                raise ValueError("Forbidden - Check Steam API key")
+                raise ValueError("Forbidden - Check Steam API key") \
+                    from error.HTTPError
             else:
                 log.error("error.HTTPError  %s %s", http_e.msg, url)
                 time.sleep(np.random.uniform(0.5,1.5))
@@ -297,12 +318,30 @@ def process_match(hero, skill, match_id):
         return None
     return None
 
+def write_matches(matches):
+    """Write matches to database"""
 
-def process_matches(match_ids, hero, skill, conn, executor):
+    for summary in matches:
+        match = Match()
+        match.match_id = summary['match_id']
+        match.start_time = summary['start_time']
+        match.radiant_heroes = str(summary['radiant_heroes'])
+        match.dire_heroes = str(summary['dire_heroes'])
+        match.radiant_win = summary['radiant_win']
+        match.api_skill = summary['api_skill']
+        match.items = summary['items']
+        match.gold_spent = summary['gold_spent']
+
+        # pylint: disable=no-member
+        db.session.merge(match)
+        db.session.commit()
+        # pylint: enable=no-member
+
+
+def process_matches(match_ids, hero, skill, executor):
     """Loop over all match_ids, parsing JSON output and writing
     to database.
     """
-    cursor=conn.cursor()
     log.debug("%d matches for processing", len(match_ids))
     match_ids=[m for m in match_ids if m not in MATCH_IDS.keys()]
     log.info("%d matches after removing duplicates.", len(match_ids))
@@ -317,26 +356,11 @@ def process_matches(match_ids, hero, skill, conn, executor):
     matches=[m for m in matches if m is not None]
     log.info("%d valid matches to write to database",len(matches))
 
-    for summary in matches:
-        stmt = 'INSERT IGNORE INTO dota_matches '
-        stmt += '(match_id, start_time, radiant_heroes, dire_heroes, '
-        stmt += 'radiant_win, api_skill, items, gold_spent) '
-        stmt += 'VALUES (?,?,?,?,?,?,?,?)'
-
-        cursor.execute(stmt,
-                       (summary['match_id'],
-                        summary['start_time'],
-                        str(summary['radiant_heroes']),
-                        str(summary['dire_heroes']),
-                        summary['radiant_win'],
-                        summary['api_skill'],
-                        summary['items'],
-                        summary['gold_spent'])
-                       )
-    conn.commit()
+    if matches is not None:
+        write_matches(matches)
 
 
-def fetch_matches(hero, skill, conn, executor):
+def fetch_matches(hero, skill, executor):
     """Gets list of matches by page. This is just the index, not the
     individual match results.
     """
@@ -374,7 +398,7 @@ def fetch_matches(hero, skill, conn, executor):
 
         if resp['num_results']>0:
             match_ids=[t['match_id'] for t in resp['matches']]
-            process_matches(match_ids, hero, skill, conn, executor)
+            process_matches(match_ids, hero, skill, executor)
             start_at_match_id=min(match_ids)-1
 
         # Set dictionary for start time so we don't fetch multiple times,
@@ -382,15 +406,23 @@ def fetch_matches(hero, skill, conn, executor):
         matches=[]
         start_times=[]
         for match in resp['matches']:
-            MATCH_IDS[match['match_id']]=match['start_time']
-            matches.append(match['match_id'])
-            start_times.append(match['start_time'])
 
-        if len(matches)>1:
-            stmt="INSERT IGNORE INTO fetch_history VALUES(?,?)"
-            cursor=conn.cursor()
-            cursor.executemany(stmt, [t for t in zip(matches,start_times)])
-            conn.commit()
+            # Skip if already in database
+            if not match['match_id'] in MATCH_IDS.keys():
+                MATCH_IDS[match['match_id']]=match['start_time']
+                matches.append(match['match_id'])
+                start_times.append(match['start_time'])
+
+        # pylint: disable=no-member
+        for match, start_time in zip(matches, start_times):
+
+            fetch_history = FetchHistory()
+            fetch_history.match_id = match
+            fetch_history.start_time = start_time
+
+            db.session.add(fetch_history)
+        db.session.commit()
+        # pylint: enable=no-member
 
         # Exit if no results remain
         if resp['results_remaining']==0:
@@ -411,16 +443,6 @@ def usage():
     txt="python fetch.py [hero name]|all skill={1,2,3}"
     print(txt)
     sys.exit(1)
-
-def get_database_connection():
-    """Return a connection to the database"""
-    conn = mariaBase.connect(
-        user=os.environ['DOTA_USERNAME'],
-        password=os.environ['DOTA_PASSWORD'],
-        host=os.environ['DOTA_HOSTNAME'],
-        database=os.environ['DOTA_DATABASE'])
-
-    return conn
 
 
 def main():
@@ -444,9 +466,6 @@ def main():
     else:
         usage()
 
-    conn=get_database_connection()
-    cursor=conn.cursor()
-
     # Populate dictionary with matches we already have within
     # INITIAL_HORIZON (don't refetch there)
 
@@ -454,18 +473,23 @@ def main():
     start_time=int((dt.datetime.utcnow()-dt.timedelta(days=INITIAL_HORIZON)).timestamp())
     end_time=int(dt.datetime.utcnow().timestamp())
 
-    stmt="SELECT match_id, start_time "
-    stmt+="FROM fetch_history WHERE start_time>={0} and start_time<={1};"
-    stmt=stmt.format(start_time, end_time)
-    log.info(stmt)
+    # pylint: disable=no-member
+    rows1 =  db.session.query(FetchHistory).\
+                    filter(FetchHistory.start_time >= start_time).\
+                    filter(FetchHistory.start_time <= end_time)
+    rows2 =  db.session.query(Match).\
+                    filter(Match.start_time >= start_time).\
+                    filter(Match.start_time <= end_time)
 
-    cursor.execute(stmt)
-    rows=cursor.fetchall()
-    print("Records to seed MATCH_IDS: {}".format(len(rows)))
+    # pylint: enable=no-member                    
 
-    for row in rows:
-        MATCH_IDS[row[0]]=row[1]
-    conn.close()
+    print("Records to seed MATCH_IDS 1: {}".format(rows1.count()))
+    print("Records to seed MATCH_IDS 1: {}".format(rows2.count()))
+    for row in rows1:
+        MATCH_IDS[row.match_id]=row.start_time
+    for row in rows2:
+        MATCH_IDS[row.match_id]=row.start_time
+
 
     # Main loop over heroes.
     # Create the thread pool now to prevent constant creation
@@ -475,17 +499,13 @@ def main():
     counter=1
 
     for hero in heroes:
-        conn=get_database_connection()
         log.info("Hero: %s %d/%d Skill: %d",
                     meta.HERO_DICT[hero],
                     counter,
                     len(heroes),
                     skill)
-        fetch_matches(hero,skill,conn,executor)
+        fetch_matches(hero, skill, executor)
         counter=counter+1
-
-        conn.commit()
-        conn.close()
 
 if __name__=="__main__":
     main()

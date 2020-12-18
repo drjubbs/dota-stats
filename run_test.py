@@ -5,19 +5,20 @@ import logging
 import os
 import json
 import numpy as np
-import mariadb
-
 import fetch
 import meta
+# Patch to use development database..
+# pylint: disable=wrong-import-position
 os.environ['DOTA_DATABASE'] = os.environ['DOTA_DATABASE']+"_dev"
+# pylint: enable=wrong-import-position
 import db_util
 from dotautil import MatchSerialization, MLEncoding, Bitmask
 from win_rate_position import HeroMaxLikelihood
 from server.server import db
 
 # Globals
-BIGINT=9223372036854775808  # Max bitmask
-DUMP_BUG = False            # See "TestDumpBug"
+BIGINT = 9223372036854775808    # Max bitmask
+DUMP_BUG = None                 # Set to none for no dump
 
 class TestDumpBug(unittest.TestCase):
     """Use this class to dump a problematic match JSON for additional testing
@@ -28,9 +29,10 @@ class TestDumpBug(unittest.TestCase):
 
     def test_fetch_debug(self):
         """Dump problematic API result to JSON"""
-
-        if DUMP_BUG:
-            match_id = "5710857053"
+        if DUMP_BUG is None:
+            return
+        else:
+            match_id = str(DUMP_BUG)
             match = fetch.fetch_match(match_id, 0)
             with open("./testing/{}.json".format(match_id), "w") as filename:
                 filename.write(json.dumps(match, indent=4))
@@ -44,13 +46,8 @@ class TestDB(unittest.TestCase):
     def setUp(self):
         """Setup database for testing"""
 
-        # Database fetch
-        self.conn = mariadb.connect(
-            user=os.environ['DOTA_USERNAME'],
-            password=os.environ['DOTA_PASSWORD'],
-            host=os.environ['DOTA_HOSTNAME'],
-            database=os.environ['DOTA_DATABASE'])
-        cursor = self.conn.cursor()
+        # Delete any tables which exist
+        db.drop_all()
 
         # Create initial database
         db_util.create_version_001()
@@ -59,8 +56,11 @@ class TestDB(unittest.TestCase):
         filename = os.path.join("testing", "test_database.txt")
         with open(filename, "r") as filehandle:
             db_txt = filehandle.read()
+
+        conn = db.engine.connect()
+        
         for stmt in db_txt.split("\n"):
-            cursor.execute(stmt)
+            conn.execute(stmt)
 
         # Upgrade
         db_util.update_version_002()
@@ -76,8 +76,10 @@ class TestDB(unittest.TestCase):
 
     def tearDown(self):
         """Delete all temporary tables"""
+        # pylint: disable=no-member
         db.session.close()
         db.drop_all()
+        # pylint: enable=no-member
 
 
 class TestProtobuf(unittest.TestCase):
@@ -109,7 +111,7 @@ class TestProtobuf(unittest.TestCase):
         self.assertEqual(sample['gold'], gold)
 
 
-class TestFetch(unittest.TestCase):
+class TestFetch(TestDB):
     """Test routines in the main fetch.py logic"""
 
     def test_bad_api_key(self):
@@ -176,6 +178,39 @@ class TestFetch(unittest.TestCase):
             fetch.parse_match(match)
 
         self.assertTrue(context.exception.__str__()=='Null Hero ID')
+
+    def test_dummy_matches(self):
+        """The testing database should be setup with some dummy matches, 
+        do some basic testing of the ORM.
+        """
+
+        #
+        rows = db.session.query(db_util.Match).all()
+        radiant = [json.loads(t.radiant_heroes) for t in rows]
+        dire = [json.loads(t.dire_heroes) for t in rows]
+        
+        # There should be an anti-mage in each game
+        antimage = sum([1 in t for t in radiant]) +  sum([1 in t for t in dire])
+        self.assertEqual(antimage, 6)
+
+
+    def test_write_matches(self):
+        """Test write to database using ORM"""
+
+        with open("./testing/write_match.json") as filename:
+            match = json.loads(filename.read())
+                
+        match = fetch.parse_match(match)
+        match_id = match['match_id']
+        fetch.write_matches([match])
+
+        match_read = db.session.query(db_util.Match).\
+                                filter(db_util.Match.match_id == match_id).\
+                                first()
+
+        self.assertEqual(match_read.match_id, match['match_id'])
+        self.assertEqual(json.loads(match_read.radiant_heroes), match['radiant_heroes'])
+        self.assertEqual(json.loads(match_read.dire_heroes), match['dire_heroes'])
 
 
 class TestBitmasks(unittest.TestCase):
@@ -398,16 +433,16 @@ class TestWinRatePosition(TestDB):
 
     def test_winrate_position(self):
         """Test assignment of heroes to positions and winrates"""
-
+                
         rows = []
-        for match in Match.query.all():
+        for match in db.session.query(db_util.Match).all():
             rows.append((
                 match.match_id,
                 match.radiant_heroes,
                 match.dire_heroes,
                 match.radiant_win
             ))
-
+        
         hml = HeroMaxLikelihood(os.path.join("analytics", "prior_final.json"))
         total_win_mat, total_count_mat = hml.matches_to_summary(rows)
 

@@ -221,10 +221,16 @@ where `start_time` can be obtained from a Python shell to represent a few hours/
 
 - High Priority
   
-  - Fix display of win rate vs. pick rate -- missing titles and formatting is off. Note that each skill level should have a different time range.
+  - Server HTML
+    - Cleanup display
+    - Add navbar anchors
+    - Check for valid HTML/CSS
+    - Format properly for mobile 
+    - Each skill level should have a different time range.
+  - Move rest of project over to ORM model (remove mariadb dependency): fetch.py is done, work on other files.
   - For all "summary" statistics jobs, DAYS should be relative to most recent match in database to make this universal. Move this to a utility function somewhere.
-  - Move SQLAlchemy objects from `server.py` in `db_util.py`. Eventually the entire project should be moved over to SQLAlchemy.
   - Implement win rate by position database write and modify front-end to display.
+  - Remove `fetch_history` table this can be taken directly from the main match table.
   
 - General
   

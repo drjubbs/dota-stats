@@ -9,7 +9,7 @@ See individual methods for more information.
 """
 
 import numpy as np
-from protobuf.match.pb_pb2 import *
+from protobuf.match.pb_pb2 import Hero, MatchInfo
 import meta
 
 class MatchSerialization:

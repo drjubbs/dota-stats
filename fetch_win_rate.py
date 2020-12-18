@@ -158,7 +158,7 @@ def main():
     begin=end-dt.timedelta(days=days)
     
 
-    conn = mariaBase.connect(
+    conn = mariadb.connect(
     user=os.environ['DOTA_USERNAME'],
     password=os.environ['DOTA_PASSWORD'],
     host=os.environ["DOTA_HOSTNAME"],

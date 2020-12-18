@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Flask server to display analytics results, uses a common instance of 
+"""Flask server to display analytics results, uses a common instance of
 SQLAlchemy to deal with concurrency.
 """
 import json
@@ -54,7 +54,7 @@ def get_health_metrics(days, timezone):
     begin=str(begin)+"_0"
     stmt="select date_hour_skill, rec_count from fetch_summary "
     stmt+="where date_hour_skill>='{}'"
-    rows=pd.read_sql_query(stmt.format(begin), Base.engine)
+    rows=pd.read_sql_query(stmt.format(begin), db.engine)
 
     date_hour_skill = rows['date_hour_skill'].tolist()
     rec_count = rows['rec_count'].tolist()
@@ -121,7 +121,7 @@ def status():
     # Win rate by skill level
     #---------------------------------------------------------------
 
-    df_sql=pd.read_sql_table("fetch_win_rate",Base.engine)
+    df_sql=pd.read_sql_table("fetch_win_rate", db.engine)
     df_sql['skill']=[int(t.split("_")[-1]) for t in df_sql['hero_skill']]
 
     radiant_vs_dire=[]

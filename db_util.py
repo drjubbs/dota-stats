@@ -36,7 +36,16 @@ class Match(Base):
     gold_spent = Column(VARCHAR(1024))
 
     def __repr__(self):
-        return '<Match %r>' % self.match_id
+        return '<Match %r Radiant %r Dire %r>' % (self.match_id, \
+                                                 self.radiant_heroes, \
+                                                 self.dire_heroes)
+
+class FetchHistory(Base):
+    """Which matches have already been fetched"""
+    __tablename__ = 'fetch_history'
+
+    match_id = Column(BigInteger, primary_key=True)
+    start_time = Column(BigInteger)
 
 
 class FetchSummary(Base):
@@ -130,7 +139,6 @@ def main():
     """Main entry point"""
     update_version_002()
 
-# pylint: enable=no-member
 
 if __name__ == "__main__":
     main()
