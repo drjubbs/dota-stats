@@ -12,6 +12,7 @@ import numpy as np
 from protobuf.match.pb_pb2 import Hero, MatchInfo
 import meta
 
+
 class MatchSerialization:
     """Contains methods to serialize/deserialize using ProtoBuf"""
 
@@ -19,7 +20,7 @@ class MatchSerialization:
     def protobuf_match_details(rad_heroes, dire_heroes, items, gold):
         """Serialize some match info to protobuf"""
 
-        rad_list=[]
+        rad_list = []
         for rad_hero in rad_heroes:
             rad_list.append(Hero(
                 hero=rad_hero,
@@ -27,7 +28,7 @@ class MatchSerialization:
                 gold_spent=gold[str(rad_hero)]
             ))
 
-        dire_list=[]
+        dire_list = []
         for dire_hero in dire_heroes:
             dire_list.append(Hero(
                 hero=dire_hero,
@@ -35,30 +36,29 @@ class MatchSerialization:
                 gold_spent=gold[str(dire_hero)]
             ))
 
-        match_info=MatchInfo(
+        match_info = MatchInfo(
             radiant_heroes=rad_list,
             dire_heroes=dire_list,
         )
         return match_info
 
-
     @staticmethod
     def unprotobuf_match_details(match_proto):
         """Deserialize match information from protobuf"""
 
-        radiant_heroes=[]
-        dire_heroes=[]
-        gold_spent={}
-        items={}
+        radiant_heroes = []
+        dire_heroes = []
+        gold_spent = {}
+        items = {}
         for rad_hero in match_proto.radiant_heroes:
             radiant_heroes.append(rad_hero.hero)
-            gold_spent[str(rad_hero.hero)]=rad_hero.gold_spent
-            items[str(rad_hero.hero)]=list(rad_hero.items)
+            gold_spent[str(rad_hero.hero)] = rad_hero.gold_spent
+            items[str(rad_hero.hero)] = list(rad_hero.items)
 
         for dire_hero in match_proto.dire_heroes:
             dire_heroes.append(dire_hero.hero)
-            gold_spent[str(dire_hero.hero)]=dire_hero.gold_spent
-            items[str(dire_hero.hero)]=list(dire_hero.items)
+            gold_spent[str(dire_hero.hero)] = dire_hero.gold_spent
+            items[str(dire_hero.hero)] = list(dire_hero.items)
 
         return (radiant_heroes,
                 dire_heroes,
@@ -79,16 +79,15 @@ class Bitmask:
 
         for hero_num in heroes:
             if 0 < hero_num <= 63:
-                low_mask=low_mask | 2**hero_num
+                low_mask = low_mask | 2**hero_num
             elif 63 < hero_num <= 127:
-                mid_mask=mid_mask | 2**(hero_num-64)
+                mid_mask = mid_mask | 2**(hero_num-64)
             elif 127 < hero_num <= 191:
-                high_mask=mid_mask | 2**(hero_num-128)
+                high_mask = mid_mask | 2**(hero_num-128)
             else:
                 raise ValueError("Hero out of range %d" % hero_num)
 
         return low_mask, mid_mask, high_mask
-
 
     @staticmethod
     def where_bitmask(hero_num):
@@ -108,7 +107,6 @@ class Bitmask:
 
         return stmt
 
-
     @staticmethod
     def decode_heroes_bitmask(bit_masks):
         """Returns list of heroes in match given a bitmask tuple/list"""
@@ -124,6 +122,7 @@ class Bitmask:
                 heroes.append(ibit+128)
 
         return heroes
+
 
 class MLEncoding:
     """Methods to one-hot encode and decode hero information for machine
@@ -158,47 +157,45 @@ class MLEncoding:
 
         # For dire, offset by number of heroes
         idx_dire = np.array(dire_heroes).reshape(-1)
-        idx_dire = np.array([meta.HEROES.index(t)+meta.NUM_HEROES \
-                                                    for t in idx_dire])
+        idx_dire = np.array([meta.HEROES.index(t)+meta.NUM_HEROES for t in
+                             idx_dire])
         x1_data[(idx_rows, idx_dire)] = -1
 
         return x1_data
 
-
     @staticmethod
     def second_order_hmatrix(rad_heroes, dire_heroes):
-        """For a list of radiant and dire heroes, create an upper triangular matrix
-        indicating radiant/dire pairs. By convention, 1 indicates first hero in i,j
-        is on dire, -1 indicates first hero was on dire. See README.md for more
-        information.
+        """For a list of radiant and dire heroes, create an upper triangular
+        matrix indicating radiant/dire pairs. By convention, 1 indicates
+        first hero in i,j is on dire, -1 indicates first hero was on dire.
+        See README.md for more information.
 
         rad_heroes: radiant heroes, numerical by enum
         dire_heroes: radiant heroes, numerical by enum
 
         """
-        data_x2=np.zeros([meta.NUM_HEROES,meta.NUM_HEROES], dtype=np.int8)
+        data_x2 = np.zeros([meta.NUM_HEROES, meta.NUM_HEROES], dtype=np.int8)
         for rad_hero in rad_heroes:
             for dire_hero in dire_heroes:
-                irh=meta.HEROES.index(rad_hero)
-                idh=meta.HEROES.index(dire_hero)
-                if idh>irh:
-                    data_x2[irh,idh] = 1
-                if idh<irh:
-                    data_x2[idh,irh] = -1
-                if idh==irh:
-                    raise ValueError("Duplicate heroes: {} {}".format(\
-                                                    rad_heroes,dire_heroes))
+                irh = meta.HEROES.index(rad_hero)
+                idh = meta.HEROES.index(dire_hero)
+                if idh > irh:
+                    data_x2[irh, idh] = 1
+                if idh < irh:
+                    data_x2[idh, irh] = -1
+                if idh == irh:
+                    raise ValueError("Duplicate heroes: {} {}".format(
+                        rad_heroes, dire_heroes))
         return data_x2
 
     @staticmethod
     def flatten_second_order_upper(x2_matrix):
         """Unravel upper triangular matrix into flat vector, skipping
         diagonal. See README.md for more information."""
-        size=x2_matrix.shape[1]
-        x_flat=np.zeros(int(size*(size-1)/2), dtype=np.int8)
+        size = x2_matrix.shape[1]
 
         idx = np.triu_indices(n=size, k=1)
-        x_flat = x2_matrix[idx]
+        x_flat = x2_matrix[idx].copy()
 
         return x_flat
 
@@ -209,17 +206,16 @@ class MLEncoding:
         over the diagonal.
 
         See README.md for more information."""
-        matrix_size = int((1+(1+8*x_flat.shape[0])**(0.5))/2)
+        matrix_size = int((1+(1+8*x_flat.shape[0])**0.5)/2)
         x_matrix = np.zeros([matrix_size, matrix_size])
         counter = 0
         for i in range(matrix_size):
             for j in [t+i+1 for t in range(matrix_size-i-1)]:
-                x_matrix[i,j]=x_flat[counter]
+                x_matrix[i, j] = x_flat[counter]
                 if mirror:
-                    x_matrix[j,i]=-x_flat[counter]
-                counter=counter+1
+                    x_matrix[j, i] = -x_flat[counter]
+                counter = counter+1
         return x_matrix
-
 
     @classmethod
     def create_features(cls, radiant_heroes, dire_heroes,
@@ -247,24 +243,25 @@ class MLEncoding:
         x1_hero = cls.first_order_vector(radiant_heroes, dire_heroes)
 
         # Second order effects
-        x2_against = np.zeros([num_matches,\
-            int(meta.NUM_HEROES*(meta.NUM_HEROES-1)/2)], dtype=np.int8)
+        x2_against = np.zeros([num_matches, int(meta.NUM_HEROES*(
+                meta.NUM_HEROES-1)/2)], dtype=np.int8)
 
         # x_all = first order effects + match-ups ally vs. enemy
-        x_all = np.zeros([num_matches, x1_hero.shape[1]+x2_against.shape[1]], dtype=np.int8)
+        x_all = np.zeros([num_matches, x1_hero.shape[1]+x2_against.shape[1]],
+                         dtype=np.int8)
 
-        counter=0
+        counter = 0
         for rhs, dhs in zip(radiant_heroes, dire_heroes):
-            x2_against[counter,:] = cls.flatten_second_order_upper(
+            x2_against[counter, :] = cls.flatten_second_order_upper(
                                     cls.second_order_hmatrix(rhs, dhs))
             x_all[counter, :] = np.concatenate([
-                                    x1_hero[counter,:],
-                                    x2_against[counter,:]
+                                    x1_hero[counter, :],
+                                    x2_against[counter, :]
                                     ])
 
             if counter % 10000 == 0 and verbose:
-                print("{} of {}".format(counter,num_matches))
+                print("{} of {}".format(counter, num_matches))
 
-            counter=counter+1
+            counter += 1
 
         return radiant_win, x1_hero, x2_against, x_all

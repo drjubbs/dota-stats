@@ -5,7 +5,6 @@ used to monitor the health of the fetch job.
 HORIZON_DAYS controls how far back in history is reprocessed each time
 the script runs.
 """
-import os
 import datetime as dt
 import sys
 import pandas as pd

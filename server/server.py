@@ -127,6 +127,8 @@ def status():
     radiant_vs_dire=[]
     pick_vs_win={}
 
+    time_range = list(set(df_sql['time_range']))[0]
+
     for skill in list(set(df_sql['skill'])):
         df_sub=df_sql[df_sql['skill']==skill]
         radiant_vs_dire.append(
@@ -141,9 +143,11 @@ def status():
                 mode='markers+text',
                 textposition='top center'))
 
-        pick_vs_win[skill].update_layout(title="Skill {0}".format(skill),
-                     height=700,
-                     width=700)
+        pick_vs_win[skill].update_layout(
+            title="Skill {0}: {1}".format(skill, time_range),
+            margin=dict(l=20, r=0, t=50, b=20),
+            height=550,
+            width=550)
         pick_vs_win[skill].update_xaxes({'title' : 'Number of Games'})
         pick_vs_win[skill].update_yaxes({'title' : 'Win %'})
 

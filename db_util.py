@@ -8,10 +8,9 @@ from sqlalchemy.ext.declarative import declarative_base
 from server.server import db
 
 Base = declarative_base()
+# pylint: disable=too-few-public-methods, no-member
 
-#----------------------------------------------------------------------------
-# BEGIN SQLAlchemy Classes
-#----------------------------------------------------------------------------
+
 class Configuration(Base):
     """Contains database configuration data include version number"""
     __tablename__ = 'configuration'
@@ -36,9 +35,9 @@ class Match(Base):
     gold_spent = Column(VARCHAR(1024))
 
     def __repr__(self):
-        return '<Match %r Radiant %r Dire %r>' % (self.match_id, \
-                                                 self.radiant_heroes, \
-                                                 self.dire_heroes)
+        return '<Match %r Radiant %r Dire %r>' % (
+            self.match_id, self.radiant_heroes, self.dire_heroes)
+
 
 class FetchHistory(Base):
     """Which matches have already been fetched"""
@@ -56,10 +55,10 @@ class FetchSummary(Base):
     rec_count = Column(Integer)
 
 
-class FetchWinRate(Base):
+class WinRatePickRate(Base):
     """Base class for fetch_win_rate object."""
 
-    __tablename__="fetch_win_rate"
+    __tablename__ = "fetch_win_rate"
     hero_skill = Column(CHAR(128), primary_key=True)
     skill = Column(TINYINT)
     hero = Column(CHAR(128))
@@ -79,8 +78,8 @@ class WinByPosition(Base):
     """Win rates by position for all heroes"""
     __tablename__ = 'win_by_position'
 
-    timestamp_hero_skill = Column(VARCHAR(128),
-                                        primary_key=True, nullable=False)
+    timestamp_hero_skill = Column(VARCHAR(128), primary_key=True,
+                                  nullable=False)
     hero = Column(VARCHAR(64), nullable=False)
     pos1 = Column(Float, nullable=True)
     pos2 = Column(Float, nullable=True)
@@ -88,22 +87,15 @@ class WinByPosition(Base):
     pos4 = Column(Float, nullable=True)
     pos5 = Column(Float, nullable=True)
 
-#----------------------------------------------------------------------------
-# END SQLAlchemy Classes
-#----------------------------------------------------------------------------
-
-#---------------------------------------------------------------------------
-# Database version upgrades
-#---------------------------------------------------------------------------
 
 def get_version():
     """Return current database version"""
     if not db.engine.dialect.has_table(db.engine, "configuration"):
         return "001"
-    else:
-        version = db.session.query(Configuration).\
-                        filter_by(config_id='VERSION').first().value
-        return version
+
+    version = db.session.query(Configuration).filter_by(
+        config_id='VERSION').first().value
+    return version
 
 
 def create_version_001():
@@ -134,6 +126,7 @@ def update_version_002():
     WinByPosition.__table__.create(db.engine)
 
     return
+
 
 def main():
     """Main entry point"""

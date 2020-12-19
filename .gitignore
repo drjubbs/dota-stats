@@ -144,3 +144,4 @@ foo.py
 .vscode
 output
 __*.csv
+.idea

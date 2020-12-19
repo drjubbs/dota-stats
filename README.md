@@ -48,6 +48,8 @@ export DOTA_DATABASE=dota
 export DOTA_HOSTNAME='localhost'
 export DOTA_PASSWORD=8e348...
 export DOTA_LOGGING=0
+export DOTA_THREADS=8
+
 export FLASK_APP=server.py
 source env/bin/activate
 ```

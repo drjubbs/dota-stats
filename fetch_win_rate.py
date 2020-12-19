@@ -1,184 +1,157 @@
 # -*- coding: utf-8 -*-
-"""Calculate summary win rate statistcs for each hero, radiant vs. dire. This 
+"""Calculate summary win rate statistics for each hero, radiant vs. dire. This
 should be automated in a cron job.
 """
-import mariadb
-import os
+import argparse
 import meta
-import sys
 import pandas as pd
 import datetime as dt
 import json
+from server.server import db
+from db_util import Match, WinRatePickRate
 
 
-def parse_records(rows):
+def parse_records(matches):
     """Create summary table as a pandas DataFrame"""
-    
-    summary={
-        'radiant_win' : [],
-        'radiant_total' : [],
-        'dire_win' : [],
-        'dire_total' : [],
-    }
-    counter=0
-    
-    for row in rows:
-        if counter % 10000 == 0:
-            print("{} of {}".format(counter,len(rows)))
 
-        rhs=json.loads(row[2])
-        dhs=json.loads(row[3])
+    summary = {
+        'radiant_win': [],
+        'radiant_total': [],
+        'dire_win': [],
+        'dire_total': [],
+    }
+    counter = 0
+    
+    for match in matches:
+        if counter % 10000 == 0:
+            print("{} of {}".format(counter, len(matches)))
+
+        rhs = json.loads(match.radiant_heroes)
+        dhs = json.loads(match.dire_heroes)
 
         for hero in rhs:
             summary['radiant_total'].append(meta.HERO_DICT[hero])
-            if row[4]==1:
+            if match.radiant_win == 1:
                 summary['radiant_win'].append(meta.HERO_DICT[hero])
         for hero in dhs:
             summary['dire_total'].append(meta.HERO_DICT[hero])
-            if row[4]==0:
+            if match.radiant_win == 0:
                 summary['dire_win'].append(meta.HERO_DICT[hero])
 
-        counter=counter+1
+        counter += 1
     
     # Radiant Summary
-    df_radiant_win=pd.DataFrame(summary['radiant_win'], columns=['hero'])
-    df_radiant_win['radiant_win']=1
-    df_radiant_win=df_radiant_win.groupby("hero").count()
-    df_radiant_total=pd.DataFrame(summary['radiant_total'], columns=['hero'])
-    df_radiant_total['radiant_total']=1
-    df_radiant_total=df_radiant_total.groupby("hero").count()
-    df1=df_radiant_win.join(df_radiant_total, how='outer').fillna(0)
-    df1['radiant_win_pct']=100.0*df1['radiant_win']/df1['radiant_total']
+    df_radiant_win = pd.DataFrame(summary['radiant_win'], columns=['hero'])
+    df_radiant_win['radiant_win'] = 1
+    df_radiant_win = df_radiant_win.groupby("hero").count()
+    df_radiant_total = pd.DataFrame(summary['radiant_total'], columns=['hero'])
+    df_radiant_total['radiant_total'] = 1
+    df_radiant_total = df_radiant_total.groupby("hero").count()
+    df1 = df_radiant_win.join(df_radiant_total, how='outer').fillna(0)
+    df1['radiant_win_pct'] = 100.0*df1['radiant_win']/df1['radiant_total']
 
     # Dire Summary
-    df_dire_win=pd.DataFrame(summary['dire_win'], columns=['hero'])
-    df_dire_win['dire_win']=1
-    df_dire_win=df_dire_win.groupby("hero").count()
-    df_dire_total=pd.DataFrame(summary['dire_total'], columns=['hero'])
-    df_dire_total['dire_total']=1
-    df_dire_total=df_dire_total.groupby("hero").count()
-    df2=df_dire_win.join(df_dire_total, how='outer').fillna(0)
-    df2['dire_win_pct']=100.0*df2['dire_win']/df2['dire_total']
+    df_dire_win = pd.DataFrame(summary['dire_win'], columns=['hero'])
+    df_dire_win['dire_win'] = 1
+    df_dire_win = df_dire_win.groupby("hero").count()
+    df_dire_total = pd.DataFrame(summary['dire_total'], columns=['hero'])
+    df_dire_total['dire_total'] = 1
+    df_dire_total = df_dire_total.groupby("hero").count()
+    df2 = df_dire_win.join(df_dire_total, how='outer').fillna(0)
+    df2['dire_win_pct'] = 100.0*df2['dire_win']/df2['dire_total']
 
-    df_hero=df1.join(df2, how='outer').fillna(0)
-    df_hero['win']=df_hero['radiant_win']+df_hero['dire_win']
-    df_hero['total']=df_hero['radiant_total']+df_hero['dire_total']
-    df_hero['win_pct']=100.0*df_hero['win']/df_hero['total']
+    df_hero = df1.join(df2, how='outer').fillna(0)
+    df_hero['win'] = df_hero['radiant_win']+df_hero['dire_win']
+    df_hero['total'] = df_hero['radiant_total']+df_hero['dire_total']
+    df_hero['win_pct'] = 100.0*df_hero['win']/df_hero['total']
 
     # Integrity checks
-    if not(int(df_hero.sum()['radiant_total'])==len(rows*5)):
-        raise(ValueError("Data integrity check fail"))
-    if not(int(df_hero.sum()['dire_total'])==len(rows*5)):
-        raise(ValueError("Data integrity check fail"))    
-    if not(int(df_hero.sum()['radiant_win'])+int(df_hero.sum()['dire_win'])==len(rows*5)):
-        raise(ValueError("Data integrity check fail"))
-    if not(int(df_hero.sum()['total'])==10*len(rows)):
-        raise(ValueError("Data integrity check fail"))
-    if not(int(df_hero.sum()['win'])==5*len(rows)):
-        raise(ValueError("Data integrity check fail"))
-        
-    return(df_hero)
+    if not(int(df_hero.sum()['radiant_total']) == len(matches*5)):
+        raise ValueError("Data integrity check fail")
+    if not(int(df_hero.sum()['dire_total']) == len(matches*5)):
+        raise ValueError("Data integrity check fail")
+    if not(int(df_hero.sum()['radiant_win'])+int(df_hero.sum()['dire_win']) ==
+           len(matches*5)):
+        raise ValueError("Data integrity check fail")
+    if not(int(df_hero.sum()['total']) == 10*len(matches)):
+        raise ValueError("Data integrity check fail")
+    if not(int(df_hero.sum()['win']) == 5*len(matches)):
+        raise ValueError("Data integrity check fail")
+
+    return df_hero
 
 
-def write_to_database(conn, df_hero, skill, time_range):
-    sql_data=[]
+def write_to_database(df_hero, skill, time_range):
+    """Update win rate data in database"""
+
     for idx, row in df_hero.iterrows():
-        sql_data.append((idx.upper().replace("-","_")+"_"+str(skill),                         
-                         skill,
-                         idx,
-                         time_range,
-                         row['radiant_win'],
-                         row['radiant_total'],
-                         row['radiant_win_pct'],
-                         row['dire_win'],
-                         row['dire_total'],
-                         row['dire_win_pct'],
-                         row['win'],
-                         row['total'], 
-                         row['win_pct'],
-                         #idx.upper().replace("-","_")+"_"+str(skill)
-                        ))
-    #stmt="INSERT INTO summary_win_rate (hero_skill, hero, time_range, radiant_win, "
-    #stmt+="radiant_total, radiant_win_pct, dire_win, dire_total, dire_win_pct, win, "
-    #stmt+="total, win_pct) VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE "
-    #stmt+="KEY UPDATE hero_skill=?"
-    
-    stmt="REPLACE INTO fetch_win_rate (hero_skill, skill, hero, time_range, radiant_win, "
-    stmt+="radiant_total, radiant_win_pct, dire_win, dire_total, dire_win_pct, win, "
-    stmt+="total, win_pct) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?);"
-    
-    print(stmt)
-        
-    c=conn.cursor()
-    c.executemany(stmt, sql_data)
+
+        wrpr = WinRatePickRate()
+
+        wrpr.hero_skill = idx.upper().replace("-", "_")+"_"+str(skill),
+        wrpr.skill = skill
+        wrpr.hero = idx
+        wrpr.time_range = time_range
+        wrpr.radiant_win = row['radiant_win'],
+        wrpr.radiant_total = row['radiant_total']
+        wrpr.radiant_win_pct = row['radiant_win_pct']
+        wrpr.dire_win = row['dire_win']
+        wrpr.dire_total = row['dire_total']
+        wrpr.dire_win_pct = row['dire_win_pct']
+        wrpr.win = row['win']
+        wrpr.total = row['total']
+        wrpr.win_pct = row['win_pct']
+
+        db.session.merge(wrpr)
+
+    db.session.commit()
 
 
-def fetch_records(conn, begin, end, skill):
+def fetch_records(begin, end, skill):
+    """Return all matches between begin and end at specified skill level"""
 
-    stmt="SELECT start_time, match_id, radiant_heroes, dire_heroes, "
-    stmt+="radiant_win FROM dota_matches WHERE start_time>={0} and "
-    stmt+="start_time<={1} and api_skill={2}"
+    begin = int(begin.timestamp())
+    end = int(end.timestamp())
 
-    stmt=stmt.format(
-        int(begin.timestamp()),
-        int(end.timestamp()),
-        skill)
-    
-    print(stmt)
-        
-    c=conn.cursor()
-    c.execute(stmt)
-    rows=c.fetchall()
-    print("Records: {}".format(len(rows)))
-    return rows
-    
-    
-    
-def usage():
-    print("python calc_winrate.py <days>")
-    print("")
-    print("days:    trailing window from utcnow()")    
-    print("")
-    sys.exit(-1)
-          
+    # pylint: disable = no-member
+    matches = db.session.query(Match).\
+        filter(Match.start_time >= begin).\
+        filter(Match.start_time <= end).\
+        filter(Match.api_skill == skill).all()
+
+    print("Records: {}".format(len(matches)))
+    return matches
+
 
 def main():
+    """Main entry point"""
     
-    # Parsse command line
-    if len(sys.argv)!=2:
-        usage()
-        
-    try:
-        days=int(sys.argv[1])
-    except:        
-        usage()
-        
-    utc=dt.datetime.utcnow()
-    end=dt.datetime(utc.year, utc.month, utc.day, utc.hour, 0)
-    begin=end-dt.timedelta(days=days)
-    
+    parser = argparse.ArgumentParser(
+        description='Calculate win rate vs. pick rate at all skill levels.')
+    parser.add_argument('days', type=int)
 
-    conn = mariadb.connect(
-    user=os.environ['DOTA_USERNAME'],
-    password=os.environ['DOTA_PASSWORD'],
-    host=os.environ["DOTA_HOSTNAME"],
-    database=os.environ['DOTA_DATABASE'])    
+    args = parser.parse_args()
+        
+    utc = dt.datetime.utcnow()
+    end = dt.datetime(utc.year, utc.month, utc.day, utc.hour, 0)
+    begin = end-dt.timedelta(days=args.days)
 
-    for skill in [3,2,1]:
+    # Drop all records
+    win_rate = db.session.query(WinRatePickRate)
+    win_rate.delete(synchronize_session=False)
+
+    for skill in [3, 2, 1]:
         
         print("Skill level: {}".format(skill))
         
-        time_range = "{} to {}".format(            
-            begin.isoformat(),
-            end.isoformat())
+        time_range = "{} to {}".format(
+            begin.strftime("%Y-%m-%d %H:%M"),
+            end.strftime("%Y-%m-%d %H:%M"))
 
-        
-        rows=fetch_records(conn,begin,end,skill)
-        df_hero=parse_records(rows)
-        write_to_database(conn, df_hero,skill,time_range)
-        conn.commit()        
-        
-    conn.close()
-    
+        matches = fetch_records(begin, end, skill)
+        df_hero = parse_records(matches)
+        write_to_database(df_hero, skill, time_range)
+
+
 if __name__ == "__main__":
     main()
