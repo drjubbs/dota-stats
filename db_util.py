@@ -2,13 +2,32 @@
 """Utility functions to manage the MySQL database, includes SQLAlchemy
 classes and functionality.
 """
-from sqlalchemy import Column, CHAR, VARCHAR, BigInteger, Integer, Float
+import os
+from sqlalchemy import create_engine, Column, CHAR, VARCHAR, BigInteger, \
+    Integer, Float
 from sqlalchemy.dialects.mysql import TINYINT
 from sqlalchemy.ext.declarative import declarative_base
-from server.server import db
+from sqlalchemy.orm import sessionmaker
+
 
 Base = declarative_base()
 # pylint: disable=too-few-public-methods, no-member
+
+
+def connect_database():
+    """Connect to database and return session"""
+    db_uri = "mysql://{0}:{1}@{2}/{3}".format(
+                os.environ['DOTA_USERNAME'],
+                os.environ['DOTA_PASSWORD'],
+                os.environ["DOTA_HOSTNAME"],
+                os.environ['DOTA_DATABASE'],
+                )
+    engine = create_engine(db_uri, echo=False)
+    s_maker = sessionmaker()
+    s_maker.configure(bind=engine)
+    session = s_maker()
+
+    return engine, session
 
 
 class Configuration(Base):
@@ -90,10 +109,12 @@ class WinByPosition(Base):
 
 def get_version():
     """Return current database version"""
-    if not db.engine.dialect.has_table(db.engine, "configuration"):
+
+    engine, session = connect_database()
+    if not engine.dialect.has_table(engine, "configuration"):
         return "001"
 
-    version = db.session.query(Configuration).filter_by(
+    version = session.query(Configuration).filter_by(
         config_id='VERSION').first().value
     return version
 
@@ -101,9 +122,10 @@ def get_version():
 def create_version_001():
     """Create the initial database version"""
 
-    if db.engine.dialect.has_table(db.engine, "dota_matches"):
-        Match.__table__.drop(db.engine)
-    Match.__table__.create(db.engine)
+    engine, session = connect_database()
+    if engine.dialect.has_table(engine, "dota_matches"):
+        Match.__table__.drop(engine)
+    Match.__table__.create(engine)
 
 
 def update_version_002():
@@ -112,18 +134,20 @@ def update_version_002():
     if get_version() != "001":
         return
 
-    Configuration.__table__.create(db.engine)
+    engine, session = connect_database()
+
+    Configuration.__table__.create(engine)
     config = Configuration()
     config.config_id = "VERSION"
     config.value = "002"
 
-    db.session.add(config)
-    db.session.commit()
+    session.add(config)
+    session.commit()
 
     # Create win position table
-    if db.engine.dialect.has_table(db.engine, "win_by_position"):
-        WinByPosition.__table__.drop(db.engine)
-    WinByPosition.__table__.create(db.engine)
+    if engine.dialect.has_table(engine, "win_by_position"):
+        WinByPosition.__table__.drop(engine)
+    WinByPosition.__table__.create(engine)
 
     return
 

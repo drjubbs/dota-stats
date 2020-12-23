@@ -40,8 +40,8 @@ from db_util import Match, FetchHistory, connect_database
 
 
 # Globals
-NUM_THREADS = os.environ['DOTA_THREADS']    # 1 = single threaded
-PAGES_PER_HERO = 10
+NUM_THREADS = int(os.environ['DOTA_THREADS'])    # 1 = single threaded
+PAGES_PER_HERO = 1
 MIN_MATCH_LEN = 1200
 INITIAL_HORIZON = 3    # Days to load from database on start-up
 CTX = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
@@ -107,7 +107,7 @@ def fetch_url(url):
     """Simple wait loop around fetching to deal with things like network
     outages, etc..."""
 
-    sleep_schedule = [0.5, 1, 2, 10, 30, 60, 300, 500, 1000, 1000]
+    sleep_schedule = [0.1, 0.5, 1, 2, 10, 30, 60, 300, 500, 1000, 1000]
     for sleep in sleep_schedule:
         time.sleep(np.random.uniform(0.3*sleep, 0.7*sleep))
         req = request.Request(url, headers={
@@ -320,7 +320,7 @@ def process_match(hero, skill, match_id):
         return None
 
 
-def write_matches(matches):
+def write_matches(session, matches):
     """Write matches to database"""
 
     for summary in matches:
@@ -335,12 +335,12 @@ def write_matches(matches):
         match.gold_spent = summary['gold_spent']
 
         # pylint: disable=no-member
-        db.session.add(match)
-        db.session.commit()
+        session.add(match)
+        session.commit()
         # pylint: enable=no-member
 
 
-def process_matches(match_ids, hero, skill, executor):
+def process_matches(session, match_ids, hero, skill, executor):
     """Loop over all match_ids, parsing JSON output and writing
     to database.
     """
@@ -363,10 +363,10 @@ def process_matches(match_ids, hero, skill, executor):
 
     if matches is not None:
         log.info("%d valid matches to write to database", len(matches))
-        write_matches(matches)
+        write_matches(session, matches)
 
 
-def fetch_matches(hero, skill, executor):
+def fetch_matches(session, hero, skill, executor):
     """Gets list of matches by page. This is just the index, not the
     individual match results.
     """
@@ -405,7 +405,7 @@ def fetch_matches(hero, skill, executor):
 
         if resp['num_results'] > 0:
             match_ids = [t['match_id'] for t in resp['matches']]
-            process_matches(match_ids, hero, skill, executor)
+            process_matches(session, match_ids, hero, skill, executor)
             start_at_match_id = min(match_ids)-1
 
         # Set dictionary for start time so we don't fetch multiple times,
@@ -427,8 +427,8 @@ def fetch_matches(hero, skill, executor):
             fetch_history.match_id = match
             fetch_history.start_time = start_time
 
-            db.session.add(fetch_history)
-        db.session.commit()
+            session.merge(fetch_history)
+        session.commit()
         # pylint: enable=no-member
 
         # Exit if no results remain
@@ -484,22 +484,16 @@ def main():
         days=INITIAL_HORIZON)).timestamp())
     end_time = int(dt.datetime.utcnow().timestamp())
 
-    # pylint: disable=no-member
-    rows1 = db.session.query(FetchHistory).\
-        filter(FetchHistory.start_time >= start_time).\
-        filter(FetchHistory.start_time <= end_time)
-    rows2 = db.session.query(Match).\
-        filter(Match.start_time >= start_time).\
-        filter(Match.start_time <= end_time)
+    with engine.connect() as conn:
+        stmt = "select start_time, match_id from dota_matches where " \
+               "start_time>={} and start_time<={};".format(start_time,end_time)
+        rows1 = conn.execute(stmt)
 
-    # pylint: enable=no-member                    
-
-    print("Records to seed MATCH_IDS 1: {}".format(rows1.count()))
-    print("Records to seed MATCH_IDS 1: {}".format(rows2.count()))
+    count = 0
     for row in rows1:
         MATCH_IDS[row.match_id] = row.start_time
-    for row in rows2:
-        MATCH_IDS[row.match_id] = row.start_time
+        count += 1
+    print("Records to seed MATCH_IDS 1: {}".format(count))
 
     # Main loop over heroes. Create the thread pool now to prevent constant
     # creation and destruction of threads. Also, destroy database connection
@@ -510,9 +504,9 @@ def main():
     for hero in heroes:
         log.info("Hero: %s %d/%d Skill: %d", meta.HERO_DICT[hero], counter,
                  len(heroes), skill)
-        fetch_matches(hero, skill, executor)
+        fetch_matches(session, hero, skill, executor)
         counter += 1
-        db.session.commit()
+        session.commit()
 
 
 if __name__ == "__main__":

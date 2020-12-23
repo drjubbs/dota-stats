@@ -8,7 +8,7 @@ import pandas as pd
 import datetime as dt
 import json
 from server.server import db
-from db_util import Match, WinRatePickRate
+from db_util import WinRatePickRate, connect_database
 
 
 def parse_records(matches):
@@ -21,10 +21,12 @@ def parse_records(matches):
         'dire_total': [],
     }
     counter = 0
-    
+
+    rowcount = matches.rowcount
+
     for match in matches:
         if counter % 10000 == 0:
-            print("{} of {}".format(counter, len(matches)))
+            print("{} of {}".format(counter, rowcount))
 
         rhs = json.loads(match.radiant_heroes)
         dhs = json.loads(match.dire_heroes)
@@ -65,18 +67,20 @@ def parse_records(matches):
     df_hero['total'] = df_hero['radiant_total']+df_hero['dire_total']
     df_hero['win_pct'] = 100.0*df_hero['win']/df_hero['total']
 
+    """
     # Integrity checks
-    if not(int(df_hero.sum()['radiant_total']) == len(matches*5)):
+    if not(int(df_hero.sum()['radiant_total']) == rowcount*5):
         raise ValueError("Data integrity check fail")
-    if not(int(df_hero.sum()['dire_total']) == len(matches*5)):
+    if not(int(df_hero.sum()['dire_total']) == rowcount*5):
         raise ValueError("Data integrity check fail")
     if not(int(df_hero.sum()['radiant_win'])+int(df_hero.sum()['dire_win']) ==
-           len(matches*5)):
+           rowcount*5)):
         raise ValueError("Data integrity check fail")
     if not(int(df_hero.sum()['total']) == 10*len(matches)):
         raise ValueError("Data integrity check fail")
     if not(int(df_hero.sum()['win']) == 5*len(matches)):
         raise ValueError("Data integrity check fail")
+    """
 
     return df_hero
 
@@ -107,22 +111,6 @@ def write_to_database(df_hero, skill, time_range):
     db.session.commit()
 
 
-def fetch_records(begin, end, skill):
-    """Return all matches between begin and end at specified skill level"""
-
-    begin = int(begin.timestamp())
-    end = int(end.timestamp())
-
-    # pylint: disable = no-member
-    matches = db.session.query(Match).\
-        filter(Match.start_time >= begin).\
-        filter(Match.start_time <= end).\
-        filter(Match.api_skill == skill).all()
-
-    print("Records: {}".format(len(matches)))
-    return matches
-
-
 def main():
     """Main entry point"""
     
@@ -136,8 +124,11 @@ def main():
     end = dt.datetime(utc.year, utc.month, utc.day, utc.hour, 0)
     begin = end-dt.timedelta(days=args.days)
 
+    # Get database connection
+    engine, session = connect_database()
+
     # Drop all records
-    win_rate = db.session.query(WinRatePickRate)
+    win_rate = session.query(WinRatePickRate)
     win_rate.delete(synchronize_session=False)
 
     for skill in [3, 2, 1]:
@@ -148,7 +139,15 @@ def main():
             begin.strftime("%Y-%m-%d %H:%M"),
             end.strftime("%Y-%m-%d %H:%M"))
 
-        matches = fetch_records(begin, end, skill)
+        with engine.connect() as conn:
+            stmt = "select radiant_win, radiant_heroes, dire_heroes from " \
+                   "dota_matches where start_time>={0} and start_time<={1} " \
+                   "and api_skill={2};".format(begin.timestamp(),
+                                               end.timestamp(), skill)
+
+            matches = conn.execute(stmt)
+            print("Row count: {}".format(matches.rowcount))
+
         df_hero = parse_records(matches)
         write_to_database(df_hero, skill, time_range)
 
