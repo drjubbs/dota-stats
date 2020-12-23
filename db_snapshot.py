@@ -40,7 +40,7 @@ def main():
 
     filename = os.path.join("snapshots", "db_others_{}.sql".format(time_str))
     cmd = 'mysqldump --databases {0} --tables fetch_summary '
-    cmd += 'fetch_history fetch_win_rate --user={1} --password={2} > {3}'
+    cmd += 'fetch_win_rate --user={1} --password={2} > {3}'
     cmd = cmd.format(
             os.environ['DOTA_DATABASE'],
             os.environ['DOTA_USERNAME'],

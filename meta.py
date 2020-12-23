@@ -5,39 +5,40 @@ import os
 import json
 
 MODE_ENUM = {
-    1 : 'All Pick (old)',
-    2 : 'Captains Mode',
-    3 : 'Random Draft',
-    4 : 'Single Draft',
-    5 : 'All Random',
-    12 : 'Least Played',
-    16 : 'Captains Draft',
-    18 : 'Ability Draft',
-    19 : 'Custom Game',
-    20 : 'All Random Deathmatch',
-    21 : '1v1 Mid',
-    22 : 'All Pick',
-    23 : 'Turbo',
-    24 : 'Mutation'
+    1: 'All Pick (old)',
+    2: 'Captains Mode',
+    3: 'Random Draft',
+    4: 'Single Draft',
+    5: 'All Random',
+    12: 'Least Played',
+    16: 'Captains Draft',
+    18: 'Ability Draft',
+    19: 'Custom Game',
+    20: 'All Random Deathmatch',
+    21: '1v1 Mid',
+    22: 'All Pick',
+    23: 'Turbo',
+    24: 'Mutation'
 }
 
-REVERSE_MODE_ENUM={}
-for k,v in MODE_ENUM.items():
-    REVERSE_MODE_ENUM[v.upper().replace(" ","_").replace("(","").replace(")","")]=k
+REVERSE_MODE_ENUM = {}
+for k, v in MODE_ENUM.items():
+    REVERSE_MODE_ENUM[v.upper().replace(" ", "_").replace("(", "").replace(
+        ")", "")] = k
 
 LOBBY_ENUM = {
-	'INVALID' : -1,
-	'CASUAL_MATCH' : 0,
-	'PRACTICE' : 1,
-	'TOURNAMENT' : 2,
-	'COOP_BOT_MATCH' : 4,
-	'LEGACY_TEAM_MATCH' : 5,
-	'LEGACY_SOLO_QUEUE_MATCH' : 6,
-	'COMPETITIVE_MATCH' : 7,
-	'CASUAL_1V1_MATCH' : 8,
-	'BATTLE_CUP' : 9,
-        'MOROKAI_CUSTOM_GAME' : 12,
-        'TI10_GAUNTLET_?' : 13
+    'INVALID': -1,
+    'CASUAL_MATCH': 0,
+    'PRACTICE': 1,
+    'TOURNAMENT': 2,
+    'COOP_BOT_MATCH': 4,
+    'LEGACY_TEAM_MATCH': 5,
+    'LEGACY_SOLO_QUEUE_MATCH': 6,
+    'COMPETITIVE_MATCH': 7,
+    'CASUAL_1V1_MATCH': 8,
+    'BATTLE_CUP': 9,
+    'MOROKAI_CUSTOM_GAME': 12,
+    'TI10_GAUNTLET_?': 13
 }
 
 LEAVER = [
@@ -78,7 +79,7 @@ LEAVER = [
     }
 ]
 
-HERO_DICT= {
+HERO_DICT = {
         1: 'anti-mage', 2: 'axe', 3: 'bane', 4: 'bloodseeker',
         5: 'crystal-maiden', 6: 'drow-ranger', 7: 'earthshaker',
         8: 'juggernaut', 9: 'mirana', 10: 'morphling',
@@ -101,7 +102,7 @@ HERO_DICT= {
         64: 'jakiro', 65: 'batrider', 66: 'chen', 67: 'spectre',
         68: 'ancient-apparition', 69: 'doom', 70: 'ursa',
         71: 'spirit-breaker', 72: 'gyrocopter', 73: 'alchemist',
-        74: 'invoker', 75: 'silencer', 76: 'outworld-devourer',
+        74: 'invoker', 75: 'silencer', 76: 'outworld-destroyer',
         77: 'lycan', 78: 'brewmaster', 79: 'shadow-demon',
         80: 'lone-druid', 81: 'chaos-knight', 82: 'meepo',
         83: 'treant-protector', 84: 'ogre-magi', 85: 'undying',
@@ -115,23 +116,23 @@ HERO_DICT= {
         108: 'underlord', 109: 'terrorblade', 110: 'phoenix',
         111: 'oracle', 112: 'winter-wyvern', 113: 'arc-warden',
         114: 'monkey-king', 119: 'dark-willow', 120: 'pangolier',
-        121: 'grimstroke', 123: 'hookwink', 126: 'void-spirit', 
+        121: 'grimstroke', 123: 'hookwink', 126: 'void-spirit',
         128: 'snapfire', 129: 'mars'}
 
 REVERSE_HERO_DICT = {}
-for k,v in HERO_DICT.items():
-    REVERSE_HERO_DICT[v]=k
+for k, v in HERO_DICT.items():
+    REVERSE_HERO_DICT[v] = k
 
-HEROES=list(HERO_DICT.keys())
-NUM_HEROES=len(HEROES)
+HEROES = list(HERO_DICT.keys())
+NUM_HEROES = len(HEROES)
 
 # Get items dictionary from OpenDota source:
 #   https://github.com/odota/dotaconstants
 cwd = os.path.dirname(os.path.realpath(__file__))
-with open(os.path.join(cwd,'items.json')) as f:
-    txt=f.read()
-    ITEMS=json.loads(txt)
+with open(os.path.join(cwd, 'items.json')) as f:
+    txt = f.read()
+    ITEMS = json.loads(txt)
 
-REVERSE_ITEM={}
-for k,v in ITEMS.items():
-    REVERSE_ITEM[v['id']]=k
+REVERSE_ITEM = {}
+for k, v in ITEMS.items():
+    REVERSE_ITEM[v['id']] = k

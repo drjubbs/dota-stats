@@ -36,7 +36,7 @@ import http.client
 import datetime as dt
 import numpy as np
 import meta
-from db_util import Match, FetchHistory, connect_database
+from db_util import Match, connect_database
 
 
 # Globals
@@ -133,7 +133,9 @@ def fetch_url(url):
             # Don't enter the wait loop if the server rejected our
             # key outright.
             if http_e.reason.upper() == 'FORBIDDEN':
+                # pylint: disable=raise-missing-from
                 raise ValueError("Forbidden - Check Steam API key")
+                # pylint: enable=raise-missing-from
 
             log.error("error.HTTPError  %s %s", str(http_e), url)
             time.sleep(np.random.uniform(0.5, 1.5))
@@ -358,7 +360,7 @@ def process_matches(session, match_ids, hero, skill, executor):
     try:
         matches = [m for m in matches if m is not None]
     except TimeoutError:
-        log.error("Timeout fetching %r" % match_ids)
+        log.error("Timeout fetching %r", match_ids)
         matches = None
 
     if matches is not None:
@@ -420,17 +422,6 @@ def fetch_matches(session, hero, skill, executor):
                 matches.append(match['match_id'])
                 start_times.append(match['start_time'])
 
-        # pylint: disable=no-member
-        for match, start_time in zip(matches, start_times):
-
-            fetch_history = FetchHistory()
-            fetch_history.match_id = match
-            fetch_history.start_time = start_time
-
-            session.merge(fetch_history)
-        session.commit()
-        # pylint: enable=no-member
-
         # Exit if no results remain
         if resp['results_remaining'] == 0:
             no_results_remain = True
@@ -486,7 +477,7 @@ def main():
 
     with engine.connect() as conn:
         stmt = "select start_time, match_id from dota_matches where " \
-               "start_time>={} and start_time<={};".format(start_time,end_time)
+               "start_time>={} and start_time<={};".format(start_time, end_time)
         rows1 = conn.execute(stmt)
 
     count = 0

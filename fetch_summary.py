@@ -5,46 +5,41 @@ used to monitor the health of the fetch job.
 HORIZON_DAYS controls how far back in history is reprocessed each time
 the script runs.
 """
+import argparse
 import datetime as dt
-import sys
 import pandas as pd
-from server.server import db
 from db_util import FetchSummary, connect_database
 
 
-def usage():
-    """Display command line help"""
-    print()
-    print("fetch_summary <horizon>")
-    print()
-    print("Horizon represents days to summarize database over.")
-    print()
-    sys.exit(-1)
+def fetch_rows(horizon_days, engine):
+    """Get the match_ids, skill level, and start times from the database
+    within `horizon_days` of current time.
+    """
 
-
-def main():
-    """Main program execution"""
-    if len(sys.argv) != 2:
-        usage()
-
-    horizon_days = 1
-    try:
-        horizon_days = int(sys.argv[1])
-    except ValueError:
-        usage()
-
-    # Get UTC timestamps spanning HORIZON_DAYS ago to today
+    # Get UTC timestamps spanning horizon_days ago to today
     start_time = int((dt.datetime.utcnow()-dt.timedelta(
         days=horizon_days)).timestamp())
     end_time = int(dt.datetime.utcnow().timestamp())
 
-    engine, session = connect_database()
     with engine.connect() as conn:
         stmt = "select start_time, match_id, api_skill from dota_matches " \
                "where start_time>={} and start_time<={};".format(start_time,
                                                                  end_time)
         rows = conn.execute(stmt)
 
+    return rows
+
+
+def main():
+    """Main program execution"""
+
+    parser = argparse.ArgumentParser(description='Update table containing '
+                                                 'record count by hour.')
+    parser.add_argument("horizon_days", type=int)
+    opts = parser.parse_args()
+
+    engine, session = connect_database()
+    rows = fetch_rows(opts.horizon_days, engine)
     print("Records: {}".format(rows.rowcount))
 
     times = []
@@ -72,10 +67,8 @@ def main():
         fetch.date_hour_skill = "{0:10d}_{1}".format(row['date_hour'],
                                                      row['skill'])
         fetch.rec_count = row['match_ids']
-
-        db.session.merge(fetch)
-
-    db.session.commit()
+        session.merge(fetch)
+    session.commit()
 
 
 if __name__ == "__main__":

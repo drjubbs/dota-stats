@@ -3,12 +3,11 @@
 should be automated in a cron job.
 """
 import argparse
-import meta
-import pandas as pd
 import datetime as dt
 import json
-from server.server import db
+import pandas as pd
 from db_util import WinRatePickRate, connect_database
+import meta
 
 
 def parse_records(matches):
@@ -41,7 +40,7 @@ def parse_records(matches):
                 summary['dire_win'].append(meta.HERO_DICT[hero])
 
         counter += 1
-    
+
     # Radiant Summary
     df_radiant_win = pd.DataFrame(summary['radiant_win'], columns=['hero'])
     df_radiant_win['radiant_win'] = 1
@@ -85,18 +84,18 @@ def parse_records(matches):
     return df_hero
 
 
-def write_to_database(df_hero, skill, time_range):
+def write_to_database(session, df_hero, skill, time_range):
     """Update win rate data in database"""
 
     for idx, row in df_hero.iterrows():
 
         wrpr = WinRatePickRate()
 
-        wrpr.hero_skill = idx.upper().replace("-", "_")+"_"+str(skill),
+        wrpr.hero_skill = idx.upper().replace("-", "_")+"_"+str(skill)
         wrpr.skill = skill
         wrpr.hero = idx
         wrpr.time_range = time_range
-        wrpr.radiant_win = row['radiant_win'],
+        wrpr.radiant_win = row['radiant_win']
         wrpr.radiant_total = row['radiant_total']
         wrpr.radiant_win_pct = row['radiant_win_pct']
         wrpr.dire_win = row['dire_win']
@@ -106,20 +105,19 @@ def write_to_database(df_hero, skill, time_range):
         wrpr.total = row['total']
         wrpr.win_pct = row['win_pct']
 
-        db.session.merge(wrpr)
-
-    db.session.commit()
+        session.merge(wrpr)
+    session.commit()
 
 
 def main():
     """Main entry point"""
-    
+
     parser = argparse.ArgumentParser(
         description='Calculate win rate vs. pick rate at all skill levels.')
     parser.add_argument('days', type=int)
 
     args = parser.parse_args()
-        
+
     utc = dt.datetime.utcnow()
     end = dt.datetime(utc.year, utc.month, utc.day, utc.hour, 0)
     begin = end-dt.timedelta(days=args.days)
@@ -132,9 +130,9 @@ def main():
     win_rate.delete(synchronize_session=False)
 
     for skill in [3, 2, 1]:
-        
+
         print("Skill level: {}".format(skill))
-        
+
         time_range = "{} to {}".format(
             begin.strftime("%Y-%m-%d %H:%M"),
             end.strftime("%Y-%m-%d %H:%M"))
@@ -149,7 +147,7 @@ def main():
             print("Row count: {}".format(matches.rowcount))
 
         df_hero = parse_records(matches)
-        write_to_database(df_hero, skill, time_range)
+        write_to_database(session, df_hero, skill, time_range)
 
 
 if __name__ == "__main__":

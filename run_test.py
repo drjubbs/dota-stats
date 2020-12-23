@@ -14,7 +14,6 @@ os.environ['DOTA_DATABASE'] = os.environ['DOTA_DATABASE']+"_dev"
 import db_util
 from dotautil import MatchSerialization, MLEncoding, Bitmask
 from win_rate_position import HeroMaxLikelihood
-from server.server import db
 
 # Globals
 BIGINT = 9223372036854775808    # Max bitmask
@@ -46,8 +45,11 @@ class TestDB(unittest.TestCase):
     def setUp(self):
         """Setup database for testing"""
 
+        self.engine, self.session = db_util.connect_database()
+
         # Delete any tables which exist
-        db.drop_all()
+        with self.engine.connect() as conn:
+            conn.execute("DROP TABLE IF EXISTS dota_matches")
 
         # Create initial database
         db_util.create_version_001()
@@ -57,7 +59,7 @@ class TestDB(unittest.TestCase):
         with open(filename, "r") as filehandle:
             db_txt = filehandle.read()
 
-        conn = db.engine.connect()
+        conn = self.engine.connect()
         
         for stmt in db_txt.split("\n"):
             conn.execute(stmt)
@@ -76,10 +78,7 @@ class TestDB(unittest.TestCase):
 
     def tearDown(self):
         """Delete all temporary tables"""
-        # pylint: disable=no-member
-        db.session.close()
-        db.drop_all()
-        # pylint: enable=no-member
+        self.session.close()
 
 
 class TestProtobuf(unittest.TestCase):
@@ -186,7 +185,7 @@ class TestFetch(TestDB):
         """
 
         #
-        rows = db.session.query(db_util.Match).all()
+        rows = self.session.query(db_util.Match).all()
         radiant = [json.loads(t.radiant_heroes) for t in rows]
         dire = [json.loads(t.dire_heroes) for t in rows]
         
@@ -203,9 +202,9 @@ class TestFetch(TestDB):
                 
         match = fetch.parse_match(match)
         match_id = match['match_id']
-        fetch.write_matches([match])
+        fetch.write_matches(self.session, [match])
 
-        match_read = db.session.query(db_util.Match).\
+        match_read = self.session.query(db_util.Match).\
                                 filter(db_util.Match.match_id == match_id).\
                                 first()
 
@@ -409,7 +408,7 @@ class TestMLEncoding(unittest.TestCase):
         self.assertEqual(fourth[idx_hero2_dire+meta.NUM_HEROES], -1)
 
         # Now check 2nd order encoding for same match
-        upper = MLEncoding.unflatten_second_order_upper(\
+        upper = MLEncoding.unflatten_second_order_upper(
                             fourth[2*meta.NUM_HEROES:], mirror=False)
 
         # hero: [116, 116, 116, 116, 116]
@@ -436,7 +435,7 @@ class TestWinRatePosition(TestDB):
         """Test assignment of heroes to positions and winrates"""
                 
         rows = []
-        for match in db.session.query(db_util.Match).all():
+        for match in self.session.query(db_util.Match).all():
             rows.append((
                 match.match_id,
                 match.radiant_heroes,

@@ -58,14 +58,6 @@ class Match(Base):
             self.match_id, self.radiant_heroes, self.dire_heroes)
 
 
-class FetchHistory(Base):
-    """Which matches have already been fetched"""
-    __tablename__ = 'fetch_history'
-
-    match_id = Column(BigInteger, primary_key=True)
-    start_time = Column(BigInteger)
-
-
 class FetchSummary(Base):
     """Base class for fetch summary stats"""
     __tablename__ = 'fetch_summary'
@@ -118,18 +110,17 @@ def get_version():
         config_id='VERSION').first().value
     return version
 
-
 def create_version_001():
-    """Create the initial database version"""
+    """Create the clean database tables"""
 
     engine, session = connect_database()
-    if engine.dialect.has_table(engine, "dota_matches"):
-        Match.__table__.drop(engine)
     Match.__table__.create(engine)
 
 
 def update_version_002():
-    """Add bitmask fields and table for winrate by position"""
+    """Adds configuration table to version database and drops the unused
+    fetch history table.
+    """
 
     if get_version() != "001":
         return
@@ -144,17 +135,17 @@ def update_version_002():
     session.add(config)
     session.commit()
 
-    # Create win position table
-    if engine.dialect.has_table(engine, "win_by_position"):
-        WinByPosition.__table__.drop(engine)
-    WinByPosition.__table__.create(engine)
-
-    return
+    with engine.connect() as conn:
+        _ = conn.execute("drop table fetch_history")
 
 
 def main():
     """Main entry point"""
-    update_version_002()
+    if get_version() == "001":
+        update_version_002()
+        print("Updating database to version 002")
+
+    print("Current database version: {}".format(get_version()))
 
 
 if __name__ == "__main__":
