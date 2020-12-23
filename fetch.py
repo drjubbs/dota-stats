@@ -335,7 +335,7 @@ def write_matches(matches):
         match.gold_spent = summary['gold_spent']
 
         # pylint: disable=no-member
-        db.session.merge(match)
+        db.session.add(match)
         db.session.commit()
         # pylint: enable=no-member
 
@@ -355,10 +355,14 @@ def process_matches(match_ids, hero, skill, executor):
         f_p = partial(process_match, hero, skill)
         matches = executor.map(f_p, match_ids, timeout=3600)
 
-    matches = [m for m in matches if m is not None]
-    log.info("%d valid matches to write to database", len(matches))
+    try:
+        matches = [m for m in matches if m is not None]
+    except TimeoutError:
+        log.error("Timeout fetching %r" % match_ids)
+        matches = None
 
     if matches is not None:
+        log.info("%d valid matches to write to database", len(matches))
         write_matches(matches)
 
 
@@ -508,6 +512,7 @@ def main():
                  len(heroes), skill)
         fetch_matches(hero, skill, executor)
         counter += 1
+        db.session.commit()
 
 
 if __name__ == "__main__":
