@@ -36,8 +36,7 @@ import http.client
 import datetime as dt
 import numpy as np
 import meta
-from db_util import Match, FetchHistory
-from server.server import db
+from db_util import Match, FetchHistory, connect_database
 
 
 # Globals
@@ -470,6 +469,8 @@ def main():
         skill = int(skill)
     else:
         usage()
+
+    engine, session = connect_database()
 
     # Populate dictionary with matches we already have within
     # INITIAL_HORIZON (don't refetch there)
