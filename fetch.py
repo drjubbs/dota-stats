@@ -41,7 +41,6 @@ from db_util import Match, connect_database
 
 # Globals
 NUM_THREADS = int(os.environ['DOTA_THREADS'])    # 1 = single threaded
-PAGES_PER_HERO = 1
 MIN_MATCH_LEN = 1200
 INITIAL_HORIZON = 3    # Days to load from database on start-up
 CTX = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
@@ -121,11 +120,13 @@ def fetch_url(url):
             if 'error' in resp_json['result']:
                 raise APIException(resp_json['result']['error'])
             return resp_json['result']
+        elif resp.status_code == 429:   # Too many requests
+            log.error("Too many requests")
         elif resp.status_code == 403:
             raise APIException("Forbidden - Check Steam API key")
         else:
-            import pdb
-            pdb.set_trace()
+            print(resp.status_code)
+            print(resp)
             raise ValueError("Could not fetch (timeout?): {}".format(url))
 
 
@@ -314,7 +315,7 @@ def write_matches(session, matches):
         match.gold_spent = summary['gold_spent']
 
         # pylint: disable=no-member
-        session.add(match)
+        session.merge(match)
         session.commit()
         # pylint: enable=no-member
 
@@ -354,7 +355,7 @@ def fetch_matches(session, hero, skill, executor):
 
     no_results_remain = False
     while not no_results_remain:
-        log.info("Fetching more matches: %d of %d", counter, PAGES_PER_HERO)
+        log.info("Fetching more matches: %d", counter)
 
         # There is a bug in valve API with load balancing, sometimes
         # the API returns no matches, so we'll re-try a few times
@@ -466,7 +467,7 @@ def main():
     counter = 1
 
     for hero in heroes:
-        log.info("Hero: %s %d/%d Skill: %d", meta.HERO_DICT[hero], counter,
+        log.info(">>> Hero: %s %d/%d Skill: %d", meta.HERO_DICT[hero], counter,
                  len(heroes), skill)
         fetch_matches(session, hero, skill, executor)
         counter += 1
