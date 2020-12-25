@@ -29,7 +29,7 @@ import os
 import sys
 import ssl
 import json
-from urllib import request, error
+import requests
 from functools import partial
 from concurrent import futures
 import http.client
@@ -110,44 +110,19 @@ def fetch_url(url):
     sleep_schedule = [0.1, 0.5, 1, 2, 10, 30, 60, 300, 500, 1000, 1000]
     for sleep in sleep_schedule:
         time.sleep(np.random.uniform(0.3*sleep, 0.7*sleep))
-        req = request.Request(url, headers={
+        headers={
             'Accept': 'gzip',
             'Content-Encoding': 'gzip',
             'Content-Type': 'application/json',
-            })
-
-        try:
-            resp = request.urlopen(req, context=CTX)
-
-            if resp.code == 200:
-                txt = resp.read()
-                resp_json = json.loads(txt)
-                if 'error' in resp_json['result']:
-                    raise APIException(resp_json['result']['error'])
-                return resp_json['result']
-
-        # Catch exceptions, sleep a little, and re-try until
-        # our sleep schedule is exhausted.
-        except error.HTTPError as http_e:
-
-            # Don't enter the wait loop if the server rejected our
-            # key outright.
-            if http_e.reason.upper() == 'FORBIDDEN':
-                # pylint: disable=raise-missing-from
-                raise ValueError("Forbidden - Check Steam API key")
-                # pylint: enable=raise-missing-from
-
-            log.error("error.HTTPError  %s %s", str(http_e), url)
-            time.sleep(np.random.uniform(0.5, 1.5))
-
-        except error.URLError as url_e:
-            log.error("error.URLError  %s", url_e.reason)
-            time.sleep(np.random.uniform(0.5, 1.5))
-
-        except http.client.RemoteDisconnected as http_e:
-            log.error("http.client.RemoteDisconnected  %s", str(http_e))
-
-    raise ValueError("Could not fetch (timeout?): {}".format(url))
+        }
+        resp = requests.get(url, headers=headers, timeout=60)
+        if resp.status_code == 200:
+            resp_json = json.loads(resp.content)
+            if 'error' in resp_json['result']:
+                raise APIException(resp_json['result']['error'])
+            return resp_json['result']
+        else:
+            raise ValueError("Could not fetch (timeout?): {}".format(url))
 
 
 def parse_players(match_id, players):
@@ -310,9 +285,7 @@ def process_match(hero, skill, match_id):
     except APIException as e_msg:
         log.error("{0:20.20} {1}". format("API Error", str(e_msg)))
         return None
-    except futures.TimeoutError as e_msg:
-        log.error("{0:20.20} {1}". format("TimeoutError", str(e_msg)))
-        return None
+
     try:
         summary = parse_match(match)
         log.debug("{0:20.20} {1}". format("Success", txt))
@@ -357,11 +330,7 @@ def process_matches(session, match_ids, hero, skill, executor):
         f_p = partial(process_match, hero, skill)
         matches = executor.map(f_p, match_ids, timeout=3600)
 
-    try:
-        matches = [m for m in matches if m is not None]
-    except TimeoutError:
-        log.error("Timeout fetching %r", match_ids)
-        matches = None
+    matches = [m for m in matches if m is not None]
 
     if matches is not None:
         log.info("%d valid matches to write to database", len(matches))
