@@ -121,7 +121,11 @@ def fetch_url(url):
             if 'error' in resp_json['result']:
                 raise APIException(resp_json['result']['error'])
             return resp_json['result']
+        elif resp.status_code == 403:
+            raise APIException("Forbidden - Check Steam API key")
         else:
+            import pdb
+            pdb.set_trace()
             raise ValueError("Could not fetch (timeout?): {}".format(url))
 
 

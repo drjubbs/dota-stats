@@ -118,7 +118,7 @@ class TestFetch(TestDB):
 
         old_key = os.environ["STEAM_KEY"]
         os.environ["STEAM_KEY"] = "AAAAA"
-        with self.assertRaises(Exception) as context:
+        with self.assertRaises(fetch.APIException) as context:
             _ = fetch.fetch_match(111,1)
 
         self.assertEqual(str(context.exception),
