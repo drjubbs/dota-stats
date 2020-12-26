@@ -42,7 +42,7 @@ from db_util import Match, connect_database
 # Globals
 NUM_THREADS = int(os.environ['DOTA_THREADS'])    # 1 = single threaded
 MIN_MATCH_LEN = 1200
-INITIAL_HORIZON = 3    # Days to load from database on start-up
+INITIAL_HORIZON = 1    # Days to load from database on start-up
 CTX = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
 
 # Globals used in multi-threading
@@ -106,7 +106,8 @@ def fetch_url(url):
     """Simple wait loop around fetching to deal with things like network
     outages, etc..."""
 
-    sleep_schedule = [0.1, 0.5, 1, 2, 10, 30, 60, 300, 500, 1000, 1000]
+    sleep_schedule = np.logspace(-0.5, 3, 20)
+    sleep_schedule += sleep_schedule*np.random.rand(20)
     for sleep in sleep_schedule:
         time.sleep(np.random.uniform(0.3*sleep, 0.7*sleep))
         headers={
