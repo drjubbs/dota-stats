@@ -29,11 +29,10 @@ import os
 import sys
 import ssl
 import json
-import requests
 from functools import partial
 from concurrent import futures
-import http.client
 import datetime as dt
+import requests
 import numpy as np
 import meta
 from db_util import Match, connect_database
@@ -116,19 +115,25 @@ def fetch_url(url):
             'Content-Type': 'application/json',
         }
         resp = requests.get(url, headers=headers, timeout=60)
+        
+        # Normal response
         if resp.status_code == 200:
             resp_json = json.loads(resp.content)
             if 'error' in resp_json['result']:
                 raise APIException(resp_json['result']['error'])
             return resp_json['result']
-        elif resp.status_code == 429:   # Too many requests
+        
+        # Error handling
+        if resp.status_code == 429:
             log.error("Too many requests")
+        elif resp.status_code == 503:
+            log.error("Service unavailable")
         elif resp.status_code == 403:
             raise APIException("Forbidden - Check Steam API key")
         else:
-            print(resp.status_code)
-            print(resp)
-            raise ValueError("Could not fetch (timeout?): {}".format(url))
+            log.error("Unknown repsonse %d %s", resp.status_code, resp.reason)
+
+        raise ValueError("Could not fetch (timeout?): {}".format(url))
 
 
 def parse_players(match_id, players):
