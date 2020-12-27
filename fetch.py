@@ -114,7 +114,10 @@ def fetch_url(url):
             'Content-Encoding': 'gzip',
             'Content-Type': 'application/json',
         }
-        resp = requests.get(url, headers=headers, timeout=60)
+        try:
+            resp = requests.get(url, headers=headers, timeout=60)
+        except requests.exceptions.ConnectionError as conn_error:
+            log.error("Connection error: %r", conn_error)
         
         # Normal response
         if resp.status_code == 200:
