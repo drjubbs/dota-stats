@@ -9,25 +9,13 @@ from sqlalchemy.dialects.mysql import TINYINT
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-
+DB_URI = os.environ['DOTA_DB_URI']
 Base = declarative_base()
-# pylint: disable=too-few-public-methods, no-member
 
-
-def connect_database():
-    """Connect to database and return session"""
-    db_uri = "mysql://{0}:{1}@{2}/{3}".format(
-                os.environ['DOTA_USERNAME'],
-                os.environ['DOTA_PASSWORD'],
-                os.environ["DOTA_HOSTNAME"],
-                os.environ['DOTA_DATABASE'],
-                )
-    engine = create_engine(db_uri, echo=False)
-    s_maker = sessionmaker()
-    s_maker.configure(bind=engine)
-    session = s_maker()
-
-    return engine, session
+# ----------------------------------------------------------------------------
+# ORM Classes
+# ----------------------------------------------------------------------------
+# pylint: disable=too-few-public-methods,no-member
 
 
 class Configuration(Base):
@@ -98,55 +86,47 @@ class WinByPosition(Base):
     pos4 = Column(Float, nullable=True)
     pos5 = Column(Float, nullable=True)
 
+# pylint: enable=too-few-public-methods, no-member
+# -----------------------------------------------------------------------------
+# Database Functions
+# -----------------------------------------------------------------------------
 
-def get_version():
-    """Return current database version"""
 
-    engine, session = connect_database()
-    if not engine.dialect.has_table(engine, "configuration"):
-        return "001"
+def connect_database():
+    """Connect to database and return session"""
+    engine = create_engine(DB_URI, echo=False)
+    s_maker = sessionmaker()
+    s_maker.configure(bind=engine)
+    session = s_maker()
 
-    version = session.query(Configuration).filter_by(
-        config_id='VERSION').first().value
-    return version
+    return engine, session
 
-def create_version_001():
+
+def get_max_start_time():
+
+    """Return the most recent start time"""
+    engine, _ = connect_database()
+    with engine.connect() as conn:
+        rows = conn.execute("select max(start_time) from dota_matches")
+    return int(rows.first()[0])
+
+
+def create_database():
     """Create the clean database tables"""
 
-    engine, session = connect_database()
-    Match.__table__.create(engine)
-
-
-def update_version_002():
-    """Adds configuration table to version database and drops the unused
-    fetch history table.
-    """
-
-    if get_version() != "001":
-        return
-
-    engine, session = connect_database()
-
-    Configuration.__table__.create(engine)
-    config = Configuration()
-    config.config_id = "VERSION"
-    config.value = "002"
-
-    session.add(config)
-    session.commit()
-
+    engine, _ = connect_database()
     with engine.connect() as conn:
-        _ = conn.execute("drop table fetch_history")
+        for table in engine.table_names():
+            conn.execute("DROP TABLE {};".format(table))
 
-
-def main():
-    """Main entry point"""
-    if get_version() == "001":
-        update_version_002()
-        print("Updating database to version 002")
-
-    print("Current database version: {}".format(get_version()))
+# pylint: disable=too-few-public-methods, no-member
+    Configuration.__table__.create(engine)
+    Match.__table__.create(engine)
+    FetchSummary.__table__.create(engine)
+    WinRatePickRate.__table__.create(engine)
+    WinByPosition.__table__.create(engine)
+# pylint: enable=too-few-public-methods, no-member
 
 
 if __name__ == "__main__":
-    main()
+    pass

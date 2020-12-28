@@ -43,10 +43,7 @@ I have found it helpful to use a small utility shell script, which also sets env
 ```
 $ cat 'env.sh'
 export STEAM_KEY=0D3D2....
-export DOTA_USERNAME=dota
-export DOTA_DATABASE=dota
-export DOTA_HOSTNAME='localhost'
-export DOTA_PASSWORD=8e348...
+export DOTA_DB_URI=mysql://dota:bb55a...@localhost/dota
 export DOTA_LOGGING=0
 export DOTA_THREADS=8
 
@@ -69,18 +66,18 @@ Note that using MyISAM (vs. InnoDB) as the engine on a Raspberry PI/small virtua
 # * Azure Adjustments
 #
 performance_schema = off
-key_buffer_size = 16M
-query_cache_size = 2M
+key_buffer_size = 8M
+query_cache_size = 1M
 query-cache-limit = 1M
 tmp_table_size = 1M
 innodb_buffer_pool_size = 0
-innodb_log_buffer_size = 256K
-max_connections = 20
-sort_buffer_size = 512M
+innodb_log_buffer_size = 64K
+max_connections = 16
+sort_buffer_size = 256M
 read_buffer_size = 256K
-read_rnd_buffer_size = 512K
-join_buffer_size = 128K
-thread_stack = 196K
+read_rnd_buffer_size = 256K
+join_buffer_size = 64K
+thread_stack = 128K
 
 ...
 ```
