@@ -8,8 +8,10 @@ import numpy as np
 import fetch
 import meta
 import db_util
+import win_rate_pick_rate
 from dotautil import MatchSerialization, MLEncoding, Bitmask
 from win_rate_position import HeroMaxLikelihood
+
 
 # Globals
 BIGINT = 9223372036854775808    # Max bitmask
@@ -193,6 +195,52 @@ class TestFetch(TestDB):
                          match['radiant_heroes'])
         self.assertEqual(json.loads(match_read.dire_heroes),
                          match['dire_heroes'])
+
+
+class TestDBUtil(unittest.TestCase):
+    """Test utility functions in DBUtil"""
+
+    def test_get_hour_blocks(self):
+        """Given `timestamp`, return list of begin and end times on the near
+        hour going back `hours` from the timestamp."""
+        text, begin, end = db_util.get_hour_blocks(1609251250, 11)
+
+        self.assertEqual(text[0], "20201229_1400")
+        self.assertEqual(text[-1], "20201229_0400")
+        self.assertEqual(end[0], 1609250400)
+        self.assertEqual(begin[-1], 1609210800)
+
+
+class TestWinRatePickRate(TestDB):
+    """Test code to calculate win rate vs. pick rate tables"""
+
+    def test_win_rate_pick_rate(self):
+        """Test code to calculate win rate vs. pick rate tables"""
+
+        engine, session = db_util.connect_database()
+
+        stmt = "select radiant_win, radiant_heroes, dire_heroes from " \
+               "dota_matches where start_time>=1605981600 and " \
+               "start_time<=1605985200 and api_skill=1; "
+
+        with engine.connect() as conn:
+            rows = conn.execute(stmt)
+
+        df_out = win_rate_pick_rate.parse_records(rows)
+
+        # Integrity checks
+        summary = df_out.sum()
+        self.assertEqual(
+            summary['radiant_win'] + summary['dire_win'],
+            rows.rowcount * 5)
+        self.assertEqual(summary['radiant_total'], summary['dire_total'])
+        self.assertEqual(
+            50,
+            sum(df_out[['radiant_total', 'dire_total']].sum(axis=1)))
+
+        # Write to database
+        win_rate_pick_rate.write_to_database(
+            session, df_out, 1, 1605985200, "20201121_1700")
 
 
 class TestBitmasks(unittest.TestCase):

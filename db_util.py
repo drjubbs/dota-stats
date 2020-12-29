@@ -3,8 +3,9 @@
 classes and functionality.
 """
 import os
+from datetime import datetime
 from sqlalchemy import create_engine, Column, CHAR, VARCHAR, BigInteger, \
-    Integer, Float
+    Integer, Float, String
 from sqlalchemy.dialects.mysql import TINYINT
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -73,6 +74,20 @@ class WinRatePickRate(Base):
     win_pct = Column(Float)
 
 
+class HeroWinRate(Base):
+    """Win rate/pick rate revised table"""
+    __tablename__ = "dota_hero_win_rate"
+
+    time_hero_skill = Column(String(128), primary_key=True)
+    time = Column(BigInteger)
+    hero = Column(Integer)
+    skill = Column(Integer)
+    radiant_win = Column(Integer)
+    radiant_total = Column(Integer)
+    dire_win = Column(Integer)
+    dire_total = Column(Integer)
+
+
 class WinByPosition(Base):
     """Win rates by position for all heroes"""
     __tablename__ = 'win_by_position'
@@ -103,12 +118,43 @@ def connect_database():
 
 
 def get_max_start_time():
-
     """Return the most recent start time"""
+
     engine, _ = connect_database()
     with engine.connect() as conn:
         rows = conn.execute("select max(start_time) from dota_matches")
     return int(rows.first()[0])
+
+
+def get_time_nearest_hour(timestamp):
+    """Return timestamp and string to nearest hour"""
+
+    utc = datetime.utcfromtimestamp(timestamp)
+    dt_hour = datetime(utc.year, utc.month, utc.day, utc.hour, 0)
+    dt_str = dt_hour.strftime("%Y%m%d_%H%M")
+    ts = int((dt_hour - datetime(1970, 1, 1)).total_seconds())
+
+    return ts, dt_str
+
+
+def get_hour_blocks(timestamp, hours):
+    """Given `timestamp`, return list of begin and end times on the near hour
+    going back `hours` from the timestamp."""
+
+    # Timestamps relative to most recent match in database
+    time_hr, _ = get_time_nearest_hour(timestamp)
+
+    begin = []
+    end = []
+    text = []
+
+    for i in range(int(hours)):
+        end.append(time_hr-i*3600)
+        begin.append(time_hr-(i+1)*3600)
+        _, time_str = get_time_nearest_hour(end[-1])
+        text.append(time_str)
+
+    return text, begin, end
 
 
 def create_database():
