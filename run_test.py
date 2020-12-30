@@ -238,10 +238,21 @@ class TestWinRatePickRate(TestDB):
             50,
             sum(df_out[['radiant_total', 'dire_total']].sum(axis=1)))
 
-        # Write to database
+        # Write to database; all skill levels
         win_rate_pick_rate.write_to_database(
             session, df_out, 1, 1605985200, "20201121_1700")
+        win_rate_pick_rate.write_to_database(
+            session, df_out, 2, 1605985200, "20201121_1700")
+        win_rate_pick_rate.write_to_database(
+            session, df_out, 3, 1605985200, "20201121_1700")
 
+        # Test table generation for win rate summary
+        wrpr = win_rate_pick_rate.get_current_win_rate_table(3)
+
+        # Drow should have all wins
+        self.assertEqual(set(wrpr[wrpr['hero'] == 'drow-ranger']['win_pct']),
+                         {100})
+        
 
 class TestBitmasks(unittest.TestCase):
     """Test code which encodes herolist to a bitmask and vice-versa"""

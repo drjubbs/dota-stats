@@ -92,6 +92,50 @@ def write_to_database(session, summary, skill, end_time, text_time):
     session.commit()
 
 
+def get_current_win_rate_table(days):
+    """Sets a summary table for current win rates, spanning `days` worth of
+    time"""
+
+    engine, _ = db_util.connect_database()
+    end = int(db_util.get_max_start_time())
+    begin = int(end - days * 24 * 3600)
+
+    stmt = "SELECT * FROM dota_hero_win_rate WHERE time>={0} AND time<={" \
+           "1};".format(begin, end)
+    summary = pd.read_sql(stmt, engine)
+    summary = summary[['hero', 'skill', 'radiant_win', 'radiant_total',
+                       'dire_win', 'dire_total']]
+    grpd = summary.groupby(["hero", "skill"]).sum()
+    grpd.reset_index(inplace=True)
+
+    # Actual hero names & legacy label field
+    grpd['hero'] = [meta.HERO_DICT[a] for a in grpd['hero']]
+    grpd['hero_skill'] = [a.upper()+"_"+str(b) for a,b in zip(grpd['hero'],
+                                                              grpd['skill'])]
+
+    # Time string
+    sbegin = dt.datetime.utcfromtimestamp(begin).isoformat()
+    send = dt.datetime.utcfromtimestamp(end).isoformat()
+    grpd['time_range'] = "{0} to {1}".format(sbegin, send)
+
+    # Maths
+    grpd['win'] = grpd['radiant_win'] + grpd['dire_win']
+    grpd['total'] = grpd['radiant_total'] + grpd['dire_total']
+
+    grpd['radiant_win_pct'] = 100.0 * grpd['radiant_win'] / grpd[
+        'radiant_total']
+    grpd['dire_win_pct'] = 100.0 * grpd['dire_win'] / grpd['dire_total']
+    grpd['win_pct'] = 100.0 * grpd['win'] / grpd['total']
+    grpd = grpd.fillna(0)
+
+    # Re-arrange
+    cols = ['hero_skill', 'skill', 'hero', 'time_range', 'radiant_win',
+            'radiant_total', 'radiant_win_pct', 'dire_win', 'dire_total',
+            'dire_win_pct', 'win', 'total', 'win_pct']
+    grpd = grpd[cols]
+
+    return grpd
+
 def main(days):
     """Main entry point"""
 
