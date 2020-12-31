@@ -3,41 +3,21 @@
 classes and functionality.
 """
 import os
+import argparse
+from datetime import datetime
 from sqlalchemy import create_engine, Column, CHAR, VARCHAR, BigInteger, \
-    Integer, Float
+    Integer, String
 from sqlalchemy.dialects.mysql import TINYINT
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-
+DB_URI = os.environ['DOTA_DB_URI']
 Base = declarative_base()
-# pylint: disable=too-few-public-methods, no-member
 
-
-def connect_database():
-    """Connect to database and return session"""
-    db_uri = "mysql://{0}:{1}@{2}/{3}".format(
-                os.environ['DOTA_USERNAME'],
-                os.environ['DOTA_PASSWORD'],
-                os.environ["DOTA_HOSTNAME"],
-                os.environ['DOTA_DATABASE'],
-                )
-    engine = create_engine(db_uri, echo=False)
-    s_maker = sessionmaker()
-    s_maker.configure(bind=engine)
-    session = s_maker()
-
-    return engine, session
-
-
-class Configuration(Base):
-    """Contains database configuration data include version number"""
-    __tablename__ = 'configuration'
-    config_id = Column(CHAR(64), primary_key=True)
-    value = Column(VARCHAR(256))
-
-    def __repr__(self):
-        return '<%s>' % self.config_id
+# ----------------------------------------------------------------------------
+# ORM Classes
+# ----------------------------------------------------------------------------
+# pylint: disable=too-few-public-methods,no-member
 
 
 class Match(Base):
@@ -60,93 +40,94 @@ class Match(Base):
 
 class FetchSummary(Base):
     """Base class for fetch summary stats"""
-    __tablename__ = 'fetch_summary'
+    __tablename__ = 'dota_fetch_summary'
     date_hour_skill = Column(CHAR(32), primary_key=True)
     skill = Column(Integer)
     rec_count = Column(Integer)
 
 
-class WinRatePickRate(Base):
-    """Base class for fetch_win_rate object."""
+class HeroWinRate(Base):
+    """Win rate/pick rate revised table"""
+    __tablename__ = "dota_hero_win_rate"
 
-    __tablename__ = "fetch_win_rate"
-    hero_skill = Column(CHAR(128), primary_key=True)
-    skill = Column(TINYINT)
-    hero = Column(CHAR(128))
-    time_range = Column(CHAR(128))
+    time_hero_skill = Column(String(128), primary_key=True)
+    time = Column(BigInteger)
+    hero = Column(Integer)
+    skill = Column(Integer)
     radiant_win = Column(Integer)
     radiant_total = Column(Integer)
-    radiant_win_pct = Column(Float)
     dire_win = Column(Integer)
     dire_total = Column(Integer)
-    dire_win_pct = Column(Float)
-    win = Column(Integer)
-    total = Column(Integer)
-    win_pct = Column(Float)
+
+# pylint: enable=too-few-public-methods, no-member
+# -----------------------------------------------------------------------------
+# Database Functions
+# -----------------------------------------------------------------------------
 
 
-class WinByPosition(Base):
-    """Win rates by position for all heroes"""
-    __tablename__ = 'win_by_position'
+def connect_database():
+    """Connect to database and return session"""
+    engine = create_engine(DB_URI, echo=False)
+    s_maker = sessionmaker()
+    s_maker.configure(bind=engine)
+    session = s_maker()
 
-    timestamp_hero_skill = Column(VARCHAR(128), primary_key=True,
-                                  nullable=False)
-    hero = Column(VARCHAR(64), nullable=False)
-    pos1 = Column(Float, nullable=True)
-    pos2 = Column(Float, nullable=True)
-    pos3 = Column(Float, nullable=True)
-    pos4 = Column(Float, nullable=True)
-    pos5 = Column(Float, nullable=True)
+    return engine, session
 
 
-def get_version():
-    """Return current database version"""
+def get_max_start_time():
+    """Return the most recent start time"""
 
-    engine, session = connect_database()
-    if not engine.dialect.has_table(engine, "configuration"):
-        return "001"
+    engine, _ = connect_database()
+    with engine.connect() as conn:
+        rows = conn.execute("select max(start_time) from dota_matches")
+    return int(rows.first()[0])
 
-    version = session.query(Configuration).filter_by(
-        config_id='VERSION').first().value
-    return version
 
-def create_version_001():
+def create_database():
     """Create the clean database tables"""
 
-    engine, session = connect_database()
-    Match.__table__.create(engine)
-
-
-def update_version_002():
-    """Adds configuration table to version database and drops the unused
-    fetch history table.
-    """
-
-    if get_version() != "001":
-        return
-
-    engine, session = connect_database()
-
-    Configuration.__table__.create(engine)
-    config = Configuration()
-    config.config_id = "VERSION"
-    config.value = "002"
-
-    session.add(config)
-    session.commit()
-
+    # Drop all of the tables
+    engine, _ = connect_database()
     with engine.connect() as conn:
-        _ = conn.execute("drop table fetch_history")
+        for table in engine.table_names():
+            conn.execute("DROP TABLE {};".format(table))
 
+        # dota_matches
+        stmt = "CREATE TABLE dota_matches (match_id BIGINT PRIMARY KEY, " \
+               "start_time BIGINT, radiant_heroes CHAR(32), dire_heroes " \
+               "CHAR(32), radiant_win BOOLEAN, api_skill INTEGER, " \
+               "items VARCHAR(1024), gold_spent VARCHAR(1024)) ENGINE = " \
+               "'MyISAM'; "
+        conn.execute(stmt)
 
-def main():
-    """Main entry point"""
-    if get_version() == "001":
-        update_version_002()
-        print("Updating database to version 002")
+        # fetch_history
+        stmt = "CREATE TABLE fetch_history (match_id BIGINT PRIMARY KEY, " \
+               "start_time BIGINT) ENGINE = 'MyISAM'; "
+        conn.execute(stmt)
 
-    print("Current database version: {}".format(get_version()))
+        # fetch_summary
+        stmt = "CREATE TABLE fetch_summary (date_hour_skill CHAR(32) PRIMARY " \
+               "KEY, skill INT, rec_count INT) ENGINE='MyISAM'; "
+        conn.execute(stmt)
+
+        # fetch_win_rate
+        stmt = "CREATE TABLE fetch_win_rate (hero_skill CHAR(128) PRIMARY " \
+               "KEY, skill TINYINT, hero CHAR(128), time_range CHAR(128), " \
+               "radiant_win INT, radiant_total INT, radiant_win_pct FLOAT, " \
+               "dire_win INT, dire_total INT, dire_win_pct FLOAT, win INT, " \
+               "total INT, win_pct FLOAT) ENGINE='MyISAM'; "
+        conn.execute(stmt)
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Database utilities")
+    parser.add_argument('--create', action='store_true',
+                        help='Create a new database, this will DELETE ALL '
+                             'DATABASE DATA.')
+    opts = parser.parse_args()
+
+    if opts.create:
+        create_database()
+    else:
+        parser.print_help()

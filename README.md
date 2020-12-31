@@ -1,10 +1,10 @@
 # Summary
 
-This program uses the Steam Dota 2 REST API to fetch match information by skill level and hero, storing results in a configured MariaDB/MySQL instance. The scripts are designed to be run in the background using e.g. `crontab` to continuously harvest match data.
+This program uses the Steam Dota 2 REST API to fetch match information by skill level and hero, storing results in a configured MariaDB/MySQL instance. The scripts are designed to be run in the background using e.g. `crontab` and `supervisor` to continuously harvest match data.
 
 The project also includes several analysis scripts and a web server, which use a variety of a summary statistics and machine learning techniques to extract insight from the data. Some of the files are Jupyter Notebooks, stored as markdown. Since Jupyter Notebooks are difficult to `diff`, the `jupytext` extension should be used to run these notebooks and keep the markdown synced.
 
-The web server is a Flask based application, which I typically host through a reverse proxy configuration using Nginx and Gunicorn.
+The web server is a Flask based application, which is typically hosted through a reverse proxy configuration using Nginx and Gunicorn.
 
 ## Contents
 
@@ -38,15 +38,12 @@ After cloning the repository, it is suggested that you setup a virtual environme
 	pip install --upgrade pip
 	pip install -i requirements.txt
 
-I have found it helpful to use a small utility shell script, which also sets environmental variables the setup will need.
+I have found it helpful to use small utility shell script(s), which also sets environmental variables the setup and program will need.
 
 ```
 $ cat 'env.sh'
 export STEAM_KEY=0D3D2....
-export DOTA_USERNAME=dota
-export DOTA_DATABASE=dota
-export DOTA_HOSTNAME='localhost'
-export DOTA_PASSWORD=8e348...
+export DOTA_DB_URI=mysql://dota:password@localhost/dota
 export DOTA_LOGGING=0
 export DOTA_THREADS=8
 
@@ -62,47 +59,47 @@ Note that using MyISAM (vs. InnoDB) as the engine on a Raspberry PI/small virtua
 
 ```
 [mysqld]
-
-...
-
 #
 # * Azure Adjustments
 #
 performance_schema = off
-key_buffer_size = 16M
-query_cache_size = 2M
+key_buffer_size = 8M
+query_cache_size = 1M
 query-cache-limit = 1M
 tmp_table_size = 1M
 innodb_buffer_pool_size = 0
-innodb_log_buffer_size = 256K
-max_connections = 20
-sort_buffer_size = 512M
+innodb_log_buffer_size = 64K
+max_connections = 16
+sort_buffer_size = 256M
 read_buffer_size = 256K
-read_rnd_buffer_size = 512K
-join_buffer_size = 128K
-thread_stack = 196K
-
+read_rnd_buffer_size = 256K
+join_buffer_size = 64K
+thread_stack = 128K
 ...
 ```
 
-Login to MariaDB as root user. The following script creates the production database, you may find it helpful to repeat for a development environment. Change the user password to something secure. I have separate servers for fetching new data and processing the data so the DB users are defined both locally and across my subnet.
+Login to MariaDB as root user. Create the production database and optionally a development database (if you intend to run unit testing). Create the database user, according to the previously setup environmental variables (substitute in for `password` as appropriate).
 
 ```
 DROP DATABASE if exists dota;
 CREATE DATABASE dota;
-USE dota;
-CREATE TABLE dota_matches (match_id BIGINT PRIMARY KEY, start_time BIGINT, radiant_heroes CHAR(32), dire_heroes CHAR(32), radiant_win BOOLEAN, api_skill INTEGER, items VARCHAR(1024), gold_spent VARCHAR(1024)) ENGINE = 'MyISAM';
-
-CREATE TABLE fetch_summary (date_hour_skill CHAR(32) PRIMARY KEY, skill INT, rec_count INT) ENGINE='MyISAM';
-
-CREATE TABLE fetch_win_rate (hero_skill CHAR(128) PRIMARY KEY, skill TINYINT, hero CHAR(128), time_range CHAR(128), radiant_win INT, radiant_total INT, radiant_win_pct FLOAT, dire_win INT, dire_total INT, dire_win_pct FLOAT, win INT, total INT, win_pct FLOAT) ENGINE='MyISAM';
-
 CREATE DATABASE dota_dev;
 
 CREATE USER 'dota'@'localhost' IDENTIFIED BY 'password1';
 GRANT ALL PRIVILEGES ON dota.* TO 'dota'@'localhost';
 GRANT ALL PRIVILEGES ON dota_dev.* TO 'dota'@'localhost';
+```
 
+Upgrade the database to the latest version. The project uses the `alembic` migration package for all changes to database structure. The database can always be re-created with the following steps:
+
+```
+$ python db_util.py --create
+$ alembic upgrade head
+INFO  [alembic.runtime.migration] Context impl MySQLImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 921d6d16a9ee, revise fetch_win_rate
+INFO  [alembic.runtime.migration] Running upgrade 921d6d16a9ee -> c71c3f058b8c, Add indices
+...
 ```
 
 ## Automation/Crontab
@@ -195,47 +192,31 @@ Restart the supervisor service: `sudo systemctl restart supervisor`. Now request
 
 ## Database Backup
 
-Dumping the entire database can be slow and costly. 
+Remove the `crontab` jobs and shutdown `supervisor`. Use `killall` to remove all running instances of python and Gunicorn under the standard user. Restart MariaDB/mySQL.
 
 ```
-TODO: INSTRUCTIONS FOR SHUTDOWN OF SERVICES
---single-transaction --quick --lock-tables=false ...Does this help...???
-db_snapshot.py [DAYS]
-```
-
-To limit records, a  timestamp filter can be applied to `mysqldump`:
-
-```mysqldump --databases dota --tables dota_matches --where="start_time>1604592194" -u dota -p > dota_matches.sql
-mysqldump --databases dota --tables dota_matches --where="start_time>1604808513" -u dota -p | gzip > dota_matches.sql.gz
-```
-
-where `start_time` can be obtained from a Python shell to represent a few hours/days worth of data:
-
-```
->>> from datetime import datetime, timedelta
->>> int((datetime.now()-timedelta(hours=12)).timestamp())
-1604592194.271184
+mysqldump --compact --compress --opt --databases dota -u dota -p | gzip > backup.sql.gz &
 ```
 
 # TODO
 
-- Front-end: Format properly for mobile
+- Front-end
+  
+  - Format tweaks are needed to get proper display for mobile
+  - Change long horizon health metrics to daily averages (vs. hourly)
   
 - Back-end
-  - For all "summary" statistics jobs, `horizon_days` should be relative to most recent match in database to make this universal. Move this to a utility function somewhere and add unit testing.
-  - Integrity checks in `fetch_win_rate.py` are no longer working, implement these as unit tests somewhere..
-  - Add unit testing around `db_util.py` and database upgrades / migrations..
-  - Clean-up/linting of all code.
+  - Why is DOTA2 API throughput so variable? I've also noticed some cases where the most recent match was days ago. I suspect not every call to fetch matches is going against the most current data?
   - Check logs and /errors for malformed responses I continue be getting from the API -- Grep "ERROR" and "Traceback" in production logs.
   - Recheck filtering on fetch that it is accurate and what is desired. Add appropriate unit testing.
+  - Look for anywhere the "timestamp()" datetime call is being used, it is likely the time is being localized incorrectly in these spots.
   
 - New Features
 
-  - Implement hero bitmasking and ability to search matches based on hero.
+  - Implement hero bitmasking and ability to search matches based on hero. Bitmasking might be slow, instead some sort of hero/match ID table might be needed with appropriate indexing on hero.
   - Implement win rate by position database write and modify front-end to display.
-  - Protobuf: Include new fields for modeled roles (based on probability model), include GPM, match duration, and other useful information which might be needed for analytics. Include player IDs for future work to model skill level based on match statistics.
-  - Reversion requirements.txt to the newest distro (Ubuntu 20.04 LTS).
-
+  - Protobuf: Include new fields for modeled roles (based on probability model), include GPM, match duration, and other useful information which might be needed for future analytics. Include player IDs for future work to model skill level based on match statistics.
+  
 - Data Analysis / Modeling
 
   - `generate_prior.py`: Add command line arguments and modify to work using dates instead of record counts.
