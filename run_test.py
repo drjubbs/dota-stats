@@ -9,7 +9,7 @@ import fetch
 import meta
 import db_util
 import win_rate_pick_rate
-from dotautil import MatchSerialization, MLEncoding, Bitmask
+from dotautil import MatchSerialization, MLEncoding, Bitmask, TimeMethods
 from win_rate_position import HeroMaxLikelihood
 
 
@@ -70,6 +70,9 @@ class TestDB(unittest.TestCase):
         process.
         """
         self.assertEqual(1, 1)
+
+    def tearDown(self):
+        self.session.close()
 
 
 class TestProtobuf(unittest.TestCase):
@@ -203,7 +206,7 @@ class TestDBUtil(unittest.TestCase):
     def test_get_hour_blocks(self):
         """Given `timestamp`, return list of begin and end times on the near
         hour going back `hours` from the timestamp."""
-        text, begin, end = db_util.get_hour_blocks(1609251250, 11)
+        text, begin, end = TimeMethods.get_hour_blocks(1609251250, 11)
 
         self.assertEqual(text[0], "20201229_1400")
         self.assertEqual(text[-1], "20201229_0400")
@@ -240,11 +243,11 @@ class TestWinRatePickRate(TestDB):
 
         # Write to database; all skill levels
         win_rate_pick_rate.write_to_database(
-            session, df_out, 1, 1605985200, "20201121_1700")
+            session, df_out, 1, 1605985200)
         win_rate_pick_rate.write_to_database(
-            session, df_out, 2, 1605985200, "20201121_1700")
+            session, df_out, 2, 1605985200)
         win_rate_pick_rate.write_to_database(
-            session, df_out, 3, 1605985200, "20201121_1700")
+            session, df_out, 3, 1605985200)
 
         # Test table generation for win rate summary
         wrpr = win_rate_pick_rate.get_current_win_rate_table(3)
@@ -252,7 +255,7 @@ class TestWinRatePickRate(TestDB):
         # Drow should have all wins
         self.assertEqual(set(wrpr[wrpr['hero'] == 'drow-ranger']['win_pct']),
                          {100})
-        
+
 
 class TestBitmasks(unittest.TestCase):
     """Test code which encodes herolist to a bitmask and vice-versa"""

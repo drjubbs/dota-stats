@@ -3,9 +3,10 @@
 classes and functionality.
 """
 import os
+import argparse
 from datetime import datetime
 from sqlalchemy import create_engine, Column, CHAR, VARCHAR, BigInteger, \
-    Integer, Float, String
+    Integer, String
 from sqlalchemy.dialects.mysql import TINYINT
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -17,16 +18,6 @@ Base = declarative_base()
 # ORM Classes
 # ----------------------------------------------------------------------------
 # pylint: disable=too-few-public-methods,no-member
-
-
-class Configuration(Base):
-    """Contains database configuration data include version number"""
-    __tablename__ = 'configuration'
-    config_id = Column(CHAR(64), primary_key=True)
-    value = Column(VARCHAR(256))
-
-    def __repr__(self):
-        return '<%s>' % self.config_id
 
 
 class Match(Base):
@@ -49,29 +40,10 @@ class Match(Base):
 
 class FetchSummary(Base):
     """Base class for fetch summary stats"""
-    __tablename__ = 'fetch_summary'
+    __tablename__ = 'dota_fetch_summary'
     date_hour_skill = Column(CHAR(32), primary_key=True)
     skill = Column(Integer)
     rec_count = Column(Integer)
-
-
-class WinRatePickRate(Base):
-    """Base class for fetch_win_rate object."""
-
-    __tablename__ = "fetch_win_rate"
-    hero_skill = Column(CHAR(128), primary_key=True)
-    skill = Column(TINYINT)
-    hero = Column(CHAR(128))
-    time_range = Column(CHAR(128))
-    radiant_win = Column(Integer)
-    radiant_total = Column(Integer)
-    radiant_win_pct = Column(Float)
-    dire_win = Column(Integer)
-    dire_total = Column(Integer)
-    dire_win_pct = Column(Float)
-    win = Column(Integer)
-    total = Column(Integer)
-    win_pct = Column(Float)
 
 
 class HeroWinRate(Base):
@@ -86,20 +58,6 @@ class HeroWinRate(Base):
     radiant_total = Column(Integer)
     dire_win = Column(Integer)
     dire_total = Column(Integer)
-
-
-class WinByPosition(Base):
-    """Win rates by position for all heroes"""
-    __tablename__ = 'win_by_position'
-
-    timestamp_hero_skill = Column(VARCHAR(128), primary_key=True,
-                                  nullable=False)
-    hero = Column(VARCHAR(64), nullable=False)
-    pos1 = Column(Float, nullable=True)
-    pos2 = Column(Float, nullable=True)
-    pos3 = Column(Float, nullable=True)
-    pos4 = Column(Float, nullable=True)
-    pos5 = Column(Float, nullable=True)
 
 # pylint: enable=too-few-public-methods, no-member
 # -----------------------------------------------------------------------------
@@ -126,53 +84,50 @@ def get_max_start_time():
     return int(rows.first()[0])
 
 
-def get_time_nearest_hour(timestamp):
-    """Return timestamp and string to nearest hour"""
-
-    utc = datetime.utcfromtimestamp(timestamp)
-    dt_hour = datetime(utc.year, utc.month, utc.day, utc.hour, 0)
-    dt_str = dt_hour.strftime("%Y%m%d_%H%M")
-    ts = int((dt_hour - datetime(1970, 1, 1)).total_seconds())
-
-    return ts, dt_str
-
-
-def get_hour_blocks(timestamp, hours):
-    """Given `timestamp`, return list of begin and end times on the near hour
-    going back `hours` from the timestamp."""
-
-    # Timestamps relative to most recent match in database
-    time_hr, _ = get_time_nearest_hour(timestamp)
-
-    begin = []
-    end = []
-    text = []
-
-    for i in range(int(hours)):
-        end.append(time_hr-i*3600)
-        begin.append(time_hr-(i+1)*3600)
-        _, time_str = get_time_nearest_hour(end[-1])
-        text.append(time_str)
-
-    return text, begin, end
-
-
 def create_database():
     """Create the clean database tables"""
 
+    # Drop all of the tables
     engine, _ = connect_database()
     with engine.connect() as conn:
         for table in engine.table_names():
             conn.execute("DROP TABLE {};".format(table))
 
-# pylint: disable=too-few-public-methods, no-member
-    Configuration.__table__.create(engine)
-    Match.__table__.create(engine)
-    FetchSummary.__table__.create(engine)
-    WinRatePickRate.__table__.create(engine)
-    WinByPosition.__table__.create(engine)
-# pylint: enable=too-few-public-methods, no-member
+        # dota_matches
+        stmt = "CREATE TABLE dota_matches (match_id BIGINT PRIMARY KEY, " \
+               "start_time BIGINT, radiant_heroes CHAR(32), dire_heroes " \
+               "CHAR(32), radiant_win BOOLEAN, api_skill INTEGER, " \
+               "items VARCHAR(1024), gold_spent VARCHAR(1024)) ENGINE = " \
+               "'MyISAM'; "
+        conn.execute(stmt)
+
+        # fetch_history
+        stmt = "CREATE TABLE fetch_history (match_id BIGINT PRIMARY KEY, " \
+               "start_time BIGINT) ENGINE = 'MyISAM'; "
+        conn.execute(stmt)
+
+        # fetch_summary
+        stmt = "CREATE TABLE fetch_summary (date_hour_skill CHAR(32) PRIMARY " \
+               "KEY, skill INT, rec_count INT) ENGINE='MyISAM'; "
+        conn.execute(stmt)
+
+        # fetch_win_rate
+        stmt = "CREATE TABLE fetch_win_rate (hero_skill CHAR(128) PRIMARY " \
+               "KEY, skill TINYINT, hero CHAR(128), time_range CHAR(128), " \
+               "radiant_win INT, radiant_total INT, radiant_win_pct FLOAT, " \
+               "dire_win INT, dire_total INT, dire_win_pct FLOAT, win INT, " \
+               "total INT, win_pct FLOAT) ENGINE='MyISAM'; "
+        conn.execute(stmt)
 
 
 if __name__ == "__main__":
-    pass
+    parser = argparse.ArgumentParser(description="Database utilities")
+    parser.add_argument('--create', action='store_true',
+                        help='Create a new database, this will DELETE ALL '
+                             'DATABASE DATA.')
+    opts = parser.parse_args()
+
+    if opts.create:
+        create_database()
+    else:
+        parser.print_help()

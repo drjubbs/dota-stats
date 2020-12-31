@@ -21,6 +21,8 @@ def upgrade():
     aggregations.
     """
     op.drop_table("fetch_win_rate")
+    op.drop_table("fetch_history")
+    op.rename_table('fetch_summary', 'dota_fetch_summary')
     op.create_table("dota_hero_win_rate",
                     sa.Column('time_hero_skill', sa.String(128),
                               primary_key=True),
@@ -38,6 +40,11 @@ def upgrade():
 def downgrade():
     """Recreate the old win table structure"""
     op.drop_table("dota_hero_win_rate")
+    op.rename_table('dota_fetch_summary', 'fetch_summary')
+    op.create_table("fetch_history",
+                    sa.Column('match_id', sa.BigInteger, primary_key=True),
+                    sa.Column('start_time', sa.BigInteger))
+
     op.create_table("fetch_win_rate",
                     sa.Column('hero_skill', sa.String(128), primary_key=True),
                     sa.Column('skill', sa.Integer),

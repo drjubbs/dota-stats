@@ -29,6 +29,7 @@ import os
 import sys
 import ssl
 import json
+import argparse
 from functools import partial
 from concurrent import futures
 import datetime as dt
@@ -109,7 +110,7 @@ def fetch_url(url):
     sleep_schedule += sleep_schedule*np.random.rand(20)
     for sleep in sleep_schedule:
         time.sleep(np.random.uniform(0.3*sleep, 0.7*sleep))
-        headers={
+        headers = {
             'Accept': 'gzip',
             'Content-Encoding': 'gzip',
             'Content-Type': 'application/json',
@@ -118,25 +119,26 @@ def fetch_url(url):
             resp = requests.get(url, headers=headers, timeout=60)
         except requests.exceptions.ConnectionError as conn_error:
             log.error("Connection error: %r", conn_error)
-        
-        # Normal response
-        if resp.status_code == 200:
-            resp_json = json.loads(resp.content)
-            if 'error' in resp_json['result']:
-                raise APIException(resp_json['result']['error'])
-            return resp_json['result']
-        
-        # Error handling
-        if resp.status_code == 429:
-            log.error("Too many requests")
-        elif resp.status_code == 503:
-            log.error("Service unavailable")
-        elif resp.status_code == 403:
-            raise APIException("Forbidden - Check Steam API key")
         else:
-            log.error("Unknown repsonse %d %s", resp.status_code, resp.reason)
+            # Normal response
+            if resp.status_code == 200:
+                resp_json = json.loads(resp.content)
+                if 'error' in resp_json['result']:
+                    raise APIException(resp_json['result']['error'])
+                return resp_json['result']
 
-        raise ValueError("Could not fetch (timeout?): {}".format(url))
+            # Error handling
+            if resp.status_code == 429:
+                log.error("Too many requests")
+            elif resp.status_code == 503:
+                log.error("Service unavailable")
+            elif resp.status_code == 403:
+                raise APIException("Forbidden - Check Steam API key")
+            else:
+                log.error("Unknown repsonse %d %s", resp.status_code,
+                          resp.reason)
+
+    raise ValueError("Could not fetch (timeout?): {}".format(url))
 
 
 def parse_players(match_id, players):
@@ -351,6 +353,31 @@ def process_matches(session, match_ids, hero, skill, executor):
         write_matches(session, matches)
 
 
+def fetch_matches_loop(url, skill, start_at_match_id, hero):
+    """Loop until we find matches. There is a bug in valve API with load
+    balancing, sometimes the API returns no matches, so we'll re-try a few
+    times if we expect more matches.
+    """
+    resp = {}
+    for retry in range(20):
+        resp = fetch_url(url.format(
+            os.environ["STEAM_KEY"],
+            skill,
+            start_at_match_id,
+            hero,
+        ))
+
+        log.error("num_results (try %d) %d", retry, resp['num_results'])
+
+        # If we found results, break out of loop
+        if resp['num_results'] > 0:
+            break
+
+        time.sleep(1)
+
+    return resp
+
+
 def fetch_matches(session, hero, skill, executor):
     """Gets list of matches by page. This is just the index, not the
     individual match results.
@@ -366,27 +393,7 @@ def fetch_matches(session, hero, skill, executor):
     while not no_results_remain:
         log.info("Fetching more matches: %d", counter)
 
-        # There is a bug in valve API with load balancing, sometimes
-        # the API returns no matches, so we'll re-try a few times
-        # if we expect more matches.
-        retry = 0
-        resp = {}
-        while retry < 20:
-            resp = fetch_url(url.format(
-                os.environ["STEAM_KEY"],
-                skill,
-                start_at_match_id,
-                hero,
-                ))
-
-            log.error("num_results (try %d) %d", retry, resp['num_results'])
-
-            # If we found results, break out of loop
-            if resp['num_results'] > 0:
-                break
-
-            time.sleep(1)
-            retry = retry+1
+        resp = fetch_matches_loop(url, skill, start_at_match_id, hero)
 
         if resp['num_results'] > 0:
             match_ids = [t['match_id'] for t in resp['matches']]
@@ -418,36 +425,41 @@ def fetch_matches(session, hero, skill, executor):
     log.debug("Matches per minute: %s", mpm)
 
 
-def usage():
-    """Display usage information."""
+def parse_command_line():
+    """Parse command line options."""
 
-    txt = "python fetch.py [hero name]|all skill={1,2,3}"
-    print(txt)
-    sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description='Fetch matches from DOTA 2 API web services.')
+    parser.add_argument('hero', type=str, help='"all" or hero names')
+    parser.add_argument('skill', type=int, help="skill = {1, 2, 3}")
+    opts = parser.parse_args()
 
-
-def main():
-    """Main entry point. """
-    if len(sys.argv) < 3:
-        usage()
-
-    heroes = []
-    hero_name = sys.argv[1].lower()
+    # Parse heroes
+    hero_name = opts.hero.lower()
     if hero_name == "all":
         heroes = list(meta.HERO_DICT.keys())
     else:
         valid_heroes = [v for k, v in meta.HERO_DICT.items()]
         if hero_name not in valid_heroes:
-            usage()
+            parser.print_help()
+            sys.exit(-1)
         else:
             heroes = [k for k, v in meta.HERO_DICT.items() if v == hero_name]
 
-    skill = sys.argv[2].lower()
-    if skill in ["1", "2", "3"]:
-        skill = int(skill)
-    else:
-        usage()
+    if opts.skill not in [1, 2, 3]:
+        parser.print_help()
+        sys.exit(-1)
 
+    return heroes, opts.skill
+
+
+def main():
+    """Main entry point. """
+
+    # Parse command line
+    heroes, skill = parse_command_line()
+
+    # Database connection
     engine, session = connect_database()
 
     # Populate dictionary with matches we already have within

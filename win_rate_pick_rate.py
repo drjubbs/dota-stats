@@ -10,6 +10,7 @@ import datetime as dt
 import json
 import pandas as pd
 import db_util
+import dotautil
 import meta
 
 
@@ -27,22 +28,17 @@ ch.setFormatter(fmt)
 log.addHandler(ch)
 
 
-
-def fetch_records(begin, end):
-    pass
-
-
 def parse_records(matches):
     """Create summary table as a pandas DataFrame"""
 
     summary = pd.DataFrame({
-        'hero' : meta.HEROES,
+        'hero': meta.HEROES,
         'radiant_win': meta.NUM_HEROES*[0],
         'radiant_total': meta.NUM_HEROES*[0],
         'dire_win': meta.NUM_HEROES*[0],
         'dire_total': meta.NUM_HEROES*[0],
     })
-    ihero = 0
+
     iradiant_win = 1
     iradiant_total = 2
     idire_win = 3
@@ -71,10 +67,10 @@ def parse_records(matches):
     return summary
 
 
-def write_to_database(session, summary, skill, end_time, text_time):
+def write_to_database(session, summary, skill, end_time):
     """Update win rate data in database"""
 
-    for idx, row in summary.iterrows():
+    for _, row in summary.iterrows():
 
         hwr = db_util.HeroWinRate()
         hwr.time_hero_skill = "{0}_H{1:03}_S{2}".format(
@@ -100,8 +96,8 @@ def get_current_win_rate_table(days):
     end = int(db_util.get_max_start_time())
     begin = int(end - days * 24 * 3600)
 
-    stmt = "SELECT * FROM dota_hero_win_rate WHERE time>={0} AND time<={" \
-           "1};".format(begin, end)
+    stmt = "SELECT * FROM dota_hero_win_rate WHERE time>={0} AND time<={1};".\
+        format(begin, end)
     summary = pd.read_sql(stmt, engine)
     summary = summary[['hero', 'skill', 'radiant_win', 'radiant_total',
                        'dire_win', 'dire_total']]
@@ -110,8 +106,8 @@ def get_current_win_rate_table(days):
 
     # Actual hero names & legacy label field
     grpd['hero'] = [meta.HERO_DICT[a] for a in grpd['hero']]
-    grpd['hero_skill'] = [a.upper()+"_"+str(b) for a,b in zip(grpd['hero'],
-                                                              grpd['skill'])]
+    grpd['hero_skill'] = [a.upper()+"_"+str(b) for a, b in
+                          zip(grpd['hero'], grpd['skill'])]
 
     # Time string
     sbegin = dt.datetime.utcfromtimestamp(begin).isoformat()
@@ -136,10 +132,11 @@ def get_current_win_rate_table(days):
 
     return grpd
 
+
 def main(days):
     """Main entry point"""
 
-    text, begin, end = db_util.get_hour_blocks(
+    text, begin, end = dotautil.TimeMethods.get_hour_blocks(
         db_util.get_max_start_time(),
         int(days*24)
     )
@@ -148,19 +145,17 @@ def main(days):
     engine, session = db_util.connect_database()
 
     with engine.connect() as conn:
-        for skill in [3, 2, 1]:
+        for skill in [1, 2, 3]:
             for ttime, btime, etime in zip(text, begin, end):
                 stmt = "select radiant_win, radiant_heroes, dire_heroes from " \
                        "dota_matches where start_time>={0} and start_time<={1}"\
                        " and api_skill={2};".format(btime, etime, skill)
                 matches = conn.execute(stmt)
-                log.info("Skill level: {0} Time: {1} Count: {2}".\
-                         format(skill, ttime, matches.rowcount))
-
-                print(stmt)
+                log.info("Skill level: %d Time: %s Count: %d", skill, ttime,
+                         matches.rowcount)
 
                 df_hero = parse_records(matches)
-                write_to_database(session, df_hero, skill, etime, ttime)
+                write_to_database(session, df_hero, skill, etime)
 
 
 if __name__ == "__main__":
