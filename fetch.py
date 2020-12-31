@@ -118,25 +118,28 @@ def fetch_url(url):
             resp = requests.get(url, headers=headers, timeout=60)
         except requests.exceptions.ConnectionError as conn_error:
             log.error("Connection error: %r", conn_error)
-        
-        # Normal response
-        if resp.status_code == 200:
-            resp_json = json.loads(resp.content)
-            if 'error' in resp_json['result']:
-                raise APIException(resp_json['result']['error'])
-            return resp_json['result']
-        
-        # Error handling
-        if resp.status_code == 429:
-            log.error("Too many requests")
-        elif resp.status_code == 503:
-            log.error("Service unavailable")
-        elif resp.status_code == 403:
-            raise APIException("Forbidden - Check Steam API key")
+        except requests.exceptions.ReadTimeout as timeout_error:
+            log.error("Timeout error: %r", timeout_error)
         else:
-            log.error("Unknown repsonse %d %s", resp.status_code, resp.reason)
 
-        raise ValueError("Could not fetch (timeout?): {}".format(url))
+            # Normal response
+            if resp.status_code == 200:
+                resp_json = json.loads(resp.content)
+                if 'error' in resp_json['result']:
+                    raise APIException(resp_json['result']['error'])
+                return resp_json['result']
+
+            # Error handling
+            if resp.status_code == 429:
+                log.error("Too many requests")
+            elif resp.status_code == 503:
+                log.error("Service unavailable")
+            elif resp.status_code == 403:
+                raise APIException("Forbidden - Check Steam API key")
+            else:
+                log.error("Unknown repsonse %d %s", resp.status_code, resp.reason)
+
+    raise ValueError("Could not fetch (timeout?): {}".format(url))
 
 
 def parse_players(match_id, players):
@@ -476,8 +479,10 @@ def main():
     counter = 1
 
     for hero in heroes:
-        log.info(">>> Hero: %s %d/%d Skill: %d", meta.HERO_DICT[hero], counter,
+        log.info("-------------------------------------------------------------")
+        log.info(">>>>>>>> Hero: %s %d/%d Skill: %d <<<<<<<<", meta.HERO_DICT[hero], counter,
                  len(heroes), skill)
+        log.info("-------------------------------------------------------------")
         fetch_matches(session, hero, skill, executor)
         counter += 1
         session.commit()
