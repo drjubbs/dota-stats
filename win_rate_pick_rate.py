@@ -29,42 +29,54 @@ log.addHandler(ch)
 
 
 def parse_records(matches):
-    """Create summary table as a pandas DataFrame"""
+    """Alternative version"""
 
-    summary = pd.DataFrame({
-        'hero': meta.HEROES,
-        'radiant_win': meta.NUM_HEROES*[0],
-        'radiant_total': meta.NUM_HEROES*[0],
-        'dire_win': meta.NUM_HEROES*[0],
-        'dire_total': meta.NUM_HEROES*[0],
-    })
-
-    iradiant_win = 1
-    iradiant_total = 2
-    idire_win = 3
-    idire_total = 4
-
-    # Return if we have no records
-    if matches.rowcount == 0:
-        return summary
+    rad_heroes = []
+    radiant_win = []
+    radiant_count = []
+    dire_heroes = []
+    dire_win = []
+    dire_count = []
 
     for match in matches:
         rhs = json.loads(match.radiant_heroes)
         dhs = json.loads(match.dire_heroes)
 
         for hero in rhs:
-            idx = meta.HEROES.index(hero)
-            summary.iloc[idx, iradiant_total] += 1
+            rad_heroes.append(hero)
+            radiant_count.append(1)
             if match.radiant_win == 1:
-                summary.iloc[idx, iradiant_win] += 1
+                radiant_win.append(1)
+            else:
+                radiant_win.append(0)
 
         for hero in dhs:
-            idx = meta.HEROES.index(hero)
-            summary.iloc[idx, idire_total] += 1
-            if match.radiant_win == 0:
-                summary.iloc[idx, idire_win] += 1
+            dire_heroes.append(hero)
+            dire_count.append(1)
+            if match.radiant_win == 1:
+                dire_win.append(0)
+            else:
+                dire_win.append(1)
 
-    return summary
+    df_radiant = pd.DataFrame({'hero': rad_heroes,
+                               'radiant_win': radiant_win,
+                               'radiant_total': radiant_count})
+    df_radiant = df_radiant.groupby("hero").sum()
+    df_radiant.reset_index(inplace=True)
+
+    df_dire = pd.DataFrame({'hero': dire_heroes,
+                            'dire_win': dire_win,
+                            'dire_total': dire_count})
+    df_dire = df_dire.groupby("hero").sum()
+    df_dire.reset_index(inplace=True)
+
+    df_total = pd.DataFrame({'hero':  meta.HEROES})
+
+    df_total = df_total.merge(df_radiant, how='left', on='hero').\
+        merge(df_dire, how='left', on='hero')
+    df_total = df_total.fillna(0)
+
+    return df_total
 
 
 def write_to_database(session, summary, skill, end_time):
