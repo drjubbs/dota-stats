@@ -48,7 +48,7 @@ def get_health_metrics(days, timezone):
     # Fetch from database
     begin = int((dt.datetime.utcnow() - dt.timedelta(days=days)).timestamp())
     begin = str(begin) + "_0"
-    stmt = "select date_hour_skill, rec_count from fetch_summary "
+    stmt = "select date_hour_skill, rec_count from dota_fetch_summary "
     stmt += "where date_hour_skill>='{}'"
     rows = pd.read_sql_query(stmt.format(begin), db.engine)
 
