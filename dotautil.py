@@ -129,11 +129,14 @@ class TimeMethods:
     """Methods to handle time string/format mangling"""
 
     @classmethod
-    def get_time_nearest_hour(cls, timestamp):
-        """Return timestamp and string to nearest hour"""
+    def get_time_nearest(cls, timestamp, hour=True):
+        """Return timestamp and string to nearest hour or day."""
 
         utc = datetime.utcfromtimestamp(timestamp)
-        dt_hour = datetime(utc.year, utc.month, utc.day, utc.hour, 0)
+        if hour is True:
+            dt_hour = datetime(utc.year, utc.month, utc.day, utc.hour, 0)
+        else:
+            dt_hour = datetime(utc.year, utc.month, utc.day, 0, 0)
         dt_str = dt_hour.strftime("%Y%m%d_%H%M")
         itime = int((dt_hour - datetime(1970, 1, 1)).total_seconds())
 
@@ -146,7 +149,7 @@ class TimeMethods:
         going back `hours` from the timestamp."""
 
         # Timestamps relative to most recent match in database
-        time_hr, _ = cls.get_time_nearest_hour(timestamp)
+        time_hr, _ = cls.get_time_nearest(timestamp)
 
         begin = []
         end = []
@@ -155,7 +158,7 @@ class TimeMethods:
         for i in range(int(hours)):
             end.append(time_hr - i * 3600)
             begin.append(time_hr - (i + 1) * 3600)
-            _, time_str = cls.get_time_nearest_hour(end[-1])
+            _, time_str = cls.get_time_nearest(end[-1])
             text.append(time_str)
 
         return text, begin, end

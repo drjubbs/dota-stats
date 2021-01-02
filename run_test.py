@@ -10,6 +10,7 @@ import meta
 import db_util
 import win_rate_pick_rate
 from dotautil import MatchSerialization, MLEncoding, Bitmask, TimeMethods
+import fetch_summary
 from win_rate_position import HeroMaxLikelihood
 
 
@@ -73,6 +74,19 @@ class TestDB(unittest.TestCase):
 
     def tearDown(self):
         self.session.close()
+
+
+class TestFetchSummary(unittest.TestCase):
+    """Testing of methods related to fetch statistics"""
+
+    def test_get_health_summary(self):
+        df1, _ = fetch_summary.get_health_summary(
+            30, 'US/Eastern', hour=False)
+        df2, _ = fetch_summary.get_health_summary(
+            3, 'US/Eastern', hour=True)
+
+        mask = (df1.sum() >= df2.sum())
+        self.assertTrue(mask.all())
 
 
 class TestProtobuf(unittest.TestCase):

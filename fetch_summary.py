@@ -8,7 +8,95 @@ the script runs.
 import argparse
 import datetime as dt
 import pandas as pd
+import pytz
+from dotautil import TimeMethods
 from db_util import FetchSummary, connect_database
+
+
+def isoformat_with_tz(time_obj, utc_hour):
+    """Format to 8601 with timezone offset"""
+
+    txt = time_obj.strftime("%Y-%m-%dT%H:%M:%S")
+    txt = "{0}{1:+03d}:00".format(txt, utc_hour)
+    return txt
+
+
+def get_health_summary(days, timezone, hour=True):
+    """Returns a Pandas dataframe summarizing number of matches processed
+    over an interval of days. Defaults to by hour, can we chaned to daily
+    view through use of optional `hour` argument`.
+    """
+
+    # Database connection
+    engine, _ = connect_database()
+
+    # Get TZ offsets, do everything relative to current TZ offset
+    local_tz = pytz.timezone(timezone)
+    utc_offset = local_tz.utcoffset(dt.datetime.now())
+    utc_hour = int(utc_offset.total_seconds() / 3600)
+
+    now = dt.datetime.utcnow()
+    now = now + utc_offset
+
+    # Create a blank dataframe for the time range of interest, starting with
+    # times.
+    if hour:
+        now_hour = dt.datetime(now.year, now.month, now.day, now.hour, 0, 0)
+        times = [isoformat_with_tz(now_hour - dt.timedelta(hours=i), utc_hour)
+                 for i in range(24 * days)]
+    else:
+        now_day = dt.datetime(now.year, now.month, now.day, 0, 0, 0)
+        times = [isoformat_with_tz(now_day - dt.timedelta(days=i), utc_hour)
+                 for i in range(days)]
+
+    # Blank dataframe, one entry for each skill level...
+    df_blank = pd.DataFrame(index=times, data={
+        1: [0] * len(times),
+        2: [0] * len(times),
+        3: [0] * len(times),
+    })
+
+    # Fetch from database
+    begin = int((dt.datetime.utcnow() - dt.timedelta(days=days)).timestamp())
+    begin = str(begin) + "_0"
+    stmt = "select date_hour_skill, rec_count from dota_fetch_summary "
+    stmt += "where date_hour_skill>='{}'"
+    rows = pd.read_sql_query(stmt.format(begin), engine)
+
+    # Split out time and skills
+    rows['time'] = [(int(t.split("_")[0])) for t in rows['date_hour_skill']]
+    rows['skill'] = [(int(t.split("_")[1])) for t in rows['date_hour_skill']]
+
+    # Apply UTC offset
+    rows['time_local'] = rows['time'] + utc_hour*3600
+    rows['time_local_rnd'] = [TimeMethods.get_time_nearest(t, hour=hour)[0]
+                              for t in rows['time_local']]
+
+    df_summary = rows[["time_local_rnd", "skill", "rec_count"]]
+    df_summary = df_summary.groupby(["time_local_rnd", "skill"]).sum()
+    df_summary.reset_index(inplace=True)
+    df_summary = df_summary.pivot(index='time_local_rnd', columns='skill',
+                                  values='rec_count')
+
+    dt2 = [dt.datetime.utcfromtimestamp(float(t)) for t in df_summary.index]
+    dt3 = [isoformat_with_tz(t, utc_hour) for t in dt2]
+    df_summary.index = dt3
+
+    # Add them together
+    df_summary = df_blank.add(df_summary, fill_value=0)
+
+    # Rename columns
+    df_summary = df_summary[[1, 2, 3]]
+    df_summary.columns = ['normal', 'high', 'very_high']
+    df_summary = df_summary.sort_index(ascending=False)
+
+    # For summary table
+    rows = zip(df_summary.index,
+               df_summary['normal'].values,
+               df_summary['high'].values,
+               df_summary['very_high'].values)
+
+    return df_summary, rows
 
 
 def fetch_rows(horizon_days, engine):
