@@ -82,22 +82,25 @@ def parse_records(matches):
 def write_to_database(session, summary, skill, end_time):
     """Update win rate data in database"""
 
+    rows = []
+    engine, session = db_util.connect_database()
+
     for _, row in summary.iterrows():
+        rows.append((
+                "{0}_H{1:03}_S{2}".format(end_time, row['hero'], skill),
+                end_time,
+                row['hero'],
+                skill,
+                row['radiant_win'],
+                row['radiant_total'],
+                row['dire_win'],
+                row['dire_total']))
 
-        hwr = db_util.HeroWinRate()
-        hwr.time_hero_skill = "{0}_H{1:03}_S{2}".format(
-            end_time, row['hero'], skill)
-
-        hwr.time = end_time
-        hwr.hero = row['hero']
-        hwr.skill = skill
-        hwr.radiant_win = row['radiant_win']
-        hwr.radiant_total = row['radiant_total']
-        hwr.dire_win = row['dire_win']
-        hwr.dire_total = row['dire_total']
-
-        session.merge(hwr)
-    session.commit()
+    conn = engine.raw_connection()
+    cursor = conn.cursor()
+    stmt = "REPLACE INTO dota_hero_win_rate VALUES (%s, %s, %s, %s, %s, %s, " \
+           "%s, %s)"
+    cursor.executemany(stmt, rows)
 
 
 def get_current_win_rate_table(days):
