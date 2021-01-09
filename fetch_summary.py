@@ -9,7 +9,7 @@ import argparse
 import datetime as dt
 import pandas as pd
 import pytz
-from dotautil import TimeMethods
+import dotautil
 from db_util import FetchSummary, connect_database
 
 
@@ -63,27 +63,33 @@ def get_health_summary(days, timezone, hour=True):
     stmt += "where date_hour_skill>='{}'"
     rows = pd.read_sql_query(stmt.format(begin), engine)
 
-    # Split out time and skills
-    rows['time'] = [(int(t.split("_")[0])) for t in rows['date_hour_skill']]
-    rows['skill'] = [(int(t.split("_")[1])) for t in rows['date_hour_skill']]
+    if len(rows) == 0:
+        df_summary = df_blank
+    else:
+        # Split out time and skills
+        rows['time'] = [(int(t.split("_")[0]))
+                        for t in rows['date_hour_skill']]
+        rows['skill'] = [(int(t.split("_")[1]))
+                         for t in rows['date_hour_skill']]
 
-    # Apply UTC offset
-    rows['time_local'] = rows['time'] + utc_hour*3600
-    rows['time_local_rnd'] = [TimeMethods.get_time_nearest(t, hour=hour)[0]
-                              for t in rows['time_local']]
+        # Apply UTC offset
+        rows['time_local'] = rows['time'] + utc_hour*3600
+        rows['time_local_rnd'] = [
+            dotautil.TimeMethods.get_time_nearest(t, hour=hour)[0]
+            for t in rows['time_local']]
 
-    df_summary = rows[["time_local_rnd", "skill", "rec_count"]]
-    df_summary = df_summary.groupby(["time_local_rnd", "skill"]).sum()
-    df_summary.reset_index(inplace=True)
-    df_summary = df_summary.pivot(index='time_local_rnd', columns='skill',
-                                  values='rec_count')
+        df_summary = rows[["time_local_rnd", "skill", "rec_count"]]
+        df_summary = df_summary.groupby(["time_local_rnd", "skill"]).sum()
+        df_summary.reset_index(inplace=True)
+        df_summary = df_summary.pivot(index='time_local_rnd', columns='skill',
+                                      values='rec_count')
 
-    dt2 = [dt.datetime.utcfromtimestamp(float(t)) for t in df_summary.index]
-    dt3 = [isoformat_with_tz(t, utc_hour) for t in dt2]
-    df_summary.index = dt3
+        dt2 = [dt.datetime.utcfromtimestamp(float(t)) for t in df_summary.index]
+        dt3 = [isoformat_with_tz(t, utc_hour) for t in dt2]
+        df_summary.index = dt3
 
-    # Add them together
-    df_summary = df_blank.add(df_summary, fill_value=0)
+        # Add them together
+        df_summary = df_blank.add(df_summary, fill_value=0)
 
     # Rename columns
     df_summary = df_summary[[1, 2, 3]]
