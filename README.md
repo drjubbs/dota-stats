@@ -202,15 +202,19 @@ mysqldump --compact --compress --opt --databases dota -u dota -p | gzip > backup
 
 - Front-end
   
-  - Format tweaks are needed to get proper display for mobile
-  - Change long horizon health metrics to daily averages (vs. hourly)
+  - Format tweaks are needed to get proper display for mobile; responsive design for plotly graphs
   
 - Back-end
-  - Why is DOTA2 API throughput so variable? I've also noticed some cases where the most recent match was days ago. I suspect not every call to fetch matches is going against the most current data?
+
+  - Why is DOTA2 API throughput so variable? I've also noticed some cases where the most recent match was days ago. I suspect not every call to fetch matches is going against the most current data, do some experimentation.
   - Check logs and /errors for malformed responses I continue be getting from the API -- Grep "ERROR" and "Traceback" in production logs.
   - Recheck filtering on fetch that it is accurate and what is desired. Add appropriate unit testing.
   - Look for anywhere the "timestamp()" datetime call is being used, it is likely the time is being localized incorrectly in these spots.
-  
+  - Move "back-end" code to a proper project directory with PYTHONPATH set to avoid relative path and linting errors
+  - Update `fetch` scripts to reflect that `win_rate_pick_rate.py` now uses a skill level
+  - Add new table for hero match-ups to easily index and find specific match-ups (e.g. Lycan vs. TA)
+  - Add overall timing information to each step (total time, rows processed, etc...) to aid with optimization
+
 - New Features
 
   - Implement hero bitmasking and ability to search matches based on hero. Bitmasking might be slow, instead some sort of hero/match ID table might be needed with appropriate indexing on hero.

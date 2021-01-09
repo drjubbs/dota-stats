@@ -5,6 +5,7 @@ import logging
 import os
 import json
 import numpy as np
+import pandas as pd
 import fetch
 import meta
 import db_util
@@ -80,6 +81,8 @@ class TestFetchSummary(unittest.TestCase):
     """Testing of methods related to fetch statistics"""
 
     def test_get_health_summary(self):
+        """Check service health"""
+        
         df1, _ = fetch_summary.get_health_summary(
             30, 'US/Eastern', hour=False)
         df2, _ = fetch_summary.get_health_summary(
@@ -234,41 +237,22 @@ class TestWinRatePickRate(TestDB):
     def test_win_rate_pick_rate(self):
         """Test code to calculate win rate vs. pick rate tables"""
 
+        win_rate_pick_rate.main(days=1, skill=1)
+
         engine, session = db_util.connect_database()
+        stmt = "select * from dota_hero_win_rate"
 
-        stmt = "select radiant_win, radiant_heroes, dire_heroes from " \
-               "dota_matches where start_time>=1605981600 and " \
-               "start_time<=1605985200 and api_skill=1; "
-
-        with engine.connect() as conn:
-            rows = conn.execute(stmt)
-
-        df_out = win_rate_pick_rate.parse_records(rows)
+        df_out = pd.read_sql(stmt, engine)
 
         # Integrity checks
         summary = df_out.sum()
         self.assertEqual(
             summary['radiant_win'] + summary['dire_win'],
-            rows.rowcount * 5)
+            25)
         self.assertEqual(summary['radiant_total'], summary['dire_total'])
         self.assertEqual(
             50,
             sum(df_out[['radiant_total', 'dire_total']].sum(axis=1)))
-
-        # Write to database; all skill levels
-        win_rate_pick_rate.write_to_database(
-            session, df_out, 1, 1605985200)
-        win_rate_pick_rate.write_to_database(
-            session, df_out, 2, 1605985200)
-        win_rate_pick_rate.write_to_database(
-            session, df_out, 3, 1605985200)
-
-        # Test table generation for win rate summary
-        wrpr = win_rate_pick_rate.get_current_win_rate_table(3)
-
-        # Drow should have all wins
-        self.assertEqual(set(wrpr[wrpr['hero'] == 'drow-ranger']['win_pct']),
-                         {100})
 
 
 class TestBitmasks(unittest.TestCase):
@@ -530,4 +514,5 @@ class TestWinRatePosition(TestDB):
 
 if __name__ == '__main__':
     fetch.log.setLevel(logging.CRITICAL)
+    win_rate_pick_rate.log.setLevel(logging.CRITICAL)
     unittest.main()

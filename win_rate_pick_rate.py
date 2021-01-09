@@ -79,17 +79,18 @@ def parse_records(matches):
     return df_total
 
 
-def write_to_database(session, summary, skill, end_time):
+def write_to_database(summary, skill, end_time):
     """Update win rate data in database"""
 
     rows = []
-    engine, session = db_util.connect_database()
+    engine, _ = db_util.connect_database()
 
     # Coerce to integers
     summary = summary.astype('int')
 
     for _, row in summary.iterrows():
-        time_hero_skill = "{0}_H{1:03}_S{2}".format(end_time, row['hero'], skill)
+        time_hero_skill = "{0}_H{1:03}_S{2}".format(
+            end_time, row['hero'], skill)
 
         rows.append((
                 time_hero_skill,
@@ -106,6 +107,7 @@ def write_to_database(session, summary, skill, end_time):
     stmt = "REPLACE INTO dota_hero_win_rate VALUES (%s, %s, %s, %s, %s, %s, " \
            "%s, %s)"
     cursor.executemany(stmt, rows)
+    conn.commit()
 
 
 def get_current_win_rate_table(days):
@@ -151,13 +153,12 @@ def get_current_win_rate_table(days):
     grpd['win_pct'] = 100.0 * grpd['win'] / grpd['total']
     grpd = grpd.fillna(0)
 
-
     grpd = grpd[cols]
 
     return grpd
 
 
-def main(days):
+def main(days, skill):
     """Main entry point"""
 
     text, begin, end = dotautil.TimeMethods.get_hour_blocks(
@@ -166,20 +167,20 @@ def main(days):
     )
 
     # Get database connection
-    engine, session = db_util.connect_database()
+    engine, _ = db_util.connect_database()
 
     with engine.connect() as conn:
-        for skill in [1, 2, 3]:
-            for ttime, btime, etime in zip(text, begin, end):
-                stmt = "select radiant_win, radiant_heroes, dire_heroes from " \
-                       "dota_matches where start_time>={0} and start_time<={1}"\
-                       " and api_skill={2};".format(btime, etime, skill)
-                matches = conn.execute(stmt)
-                log.info("Skill level: %d Time: %s Count: %d", skill, ttime,
-                         matches.rowcount)
+        for ttime, btime, etime in zip(text, begin, end):
+            stmt = "select radiant_win, radiant_heroes, dire_heroes from " \
+                   "dota_matches where start_time>={0} and start_time<={1}"\
+                   " and api_skill={2};".format(btime, etime, skill)
+            matches = conn.execute(stmt)
 
-                df_hero = parse_records(matches)
-                write_to_database(session, df_hero, skill, etime)
+            log.info("Skill level: %d Time: %s Count: %d", skill, ttime,
+                     matches.rowcount)
+
+            df_hero = parse_records(matches)
+            write_to_database(df_hero, skill, etime)
 
 
 if __name__ == "__main__":
@@ -188,5 +189,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Calculate win rate vs. pick rate at all skill levels.')
     parser.add_argument('days', type=int)
+    parser.add_argument('skill', type=int)
     args = parser.parse_args()
-    main(args.days)
+
+    if args.skill not in [1, 2, 3]:
+        parser.print_help()
+        sys.exit(-1)
+
+    main(args.days, args.skill)
