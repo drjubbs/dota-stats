@@ -85,9 +85,14 @@ def write_to_database(session, summary, skill, end_time):
     rows = []
     engine, session = db_util.connect_database()
 
+    # Coerce to integers
+    summary = summary.astype('int')
+
     for _, row in summary.iterrows():
+        time_hero_skill = "{0}_H{1:03}_S{2}".format(end_time, row['hero'], skill)
+
         rows.append((
-                "{0}_H{1:03}_S{2}".format(end_time, row['hero'], skill),
+                time_hero_skill,
                 end_time,
                 row['hero'],
                 skill,
@@ -114,6 +119,13 @@ def get_current_win_rate_table(days):
     stmt = "SELECT * FROM dota_hero_win_rate WHERE time>={0} AND time<={1};".\
         format(begin, end)
     summary = pd.read_sql(stmt, engine)
+
+    # Columns to re-arrange into... used later for now construct blank
+    # dataframe if needed
+    cols = ['hero_skill', 'skill', 'hero', 'time_range', 'radiant_win',
+            'radiant_total', 'radiant_win_pct', 'dire_win', 'dire_total',
+            'dire_win_pct', 'win', 'total', 'win_pct']
+
     summary = summary[['hero', 'skill', 'radiant_win', 'radiant_total',
                        'dire_win', 'dire_total']]
     grpd = summary.groupby(["hero", "skill"]).sum()
@@ -139,10 +151,7 @@ def get_current_win_rate_table(days):
     grpd['win_pct'] = 100.0 * grpd['win'] / grpd['total']
     grpd = grpd.fillna(0)
 
-    # Re-arrange
-    cols = ['hero_skill', 'skill', 'hero', 'time_range', 'radiant_win',
-            'radiant_total', 'radiant_win_pct', 'dire_win', 'dire_total',
-            'dire_win_pct', 'win', 'total', 'win_pct']
+
     grpd = grpd[cols]
 
     return grpd
