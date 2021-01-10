@@ -7,13 +7,8 @@ import json
 import numpy as np
 import pandas as pd
 import fetch
-import meta
-import db_util
-import win_rate_pick_rate
-from dotautil import MatchSerialization, MLEncoding, Bitmask, TimeMethods
-import fetch_summary
-from win_rate_position import HeroMaxLikelihood
-
+from dota_stats import meta, db_util, win_rate_pick_rate, dotautil, \
+    fetch_summary, win_rate_position
 
 # Globals
 BIGINT = 9223372036854775808    # Max bitmask
@@ -82,7 +77,7 @@ class TestFetchSummary(unittest.TestCase):
 
     def test_get_health_summary(self):
         """Check service health"""
-        
+
         df1, _ = fetch_summary.get_health_summary(
             30, 'US/Eastern', hour=False)
         df2, _ = fetch_summary.get_health_summary(
@@ -90,35 +85,6 @@ class TestFetchSummary(unittest.TestCase):
 
         mask = (df1.sum() >= df2.sum())
         self.assertTrue(mask.all())
-
-
-class TestProtobuf(unittest.TestCase):
-    """Testing of serializeation and deserialization to protobuf."""
-
-    def test_serialization(self):
-        """
-        a1: Radiant heroes
-        a2: Dire heroes
-        a3: Items dictionary
-        a4: Gold Spent dictionary
-
-        """
-        with open(os.path.join("testing", "protobuf.json"), "r") as filename:
-            sample = json.loads(filename.read())
-
-        test_pb = MatchSerialization.protobuf_match_details(
-                        sample['radiant_heroes'],
-                        sample['dire_heroes'],
-                        sample['items'],
-                        sample['gold'])
-
-        radiant_heroes, dire_heroes, items, gold = \
-            MatchSerialization.unprotobuf_match_details(test_pb)
-
-        self.assertEqual(sample['radiant_heroes'], radiant_heroes)
-        self.assertEqual(sample['dire_heroes'], dire_heroes)
-        self.assertEqual(sample['items'], items)
-        self.assertEqual(sample['gold'], gold)
 
 
 class TestFetch(TestDB):
@@ -223,7 +189,7 @@ class TestDBUtil(unittest.TestCase):
     def test_get_hour_blocks(self):
         """Given `timestamp`, return list of begin and end times on the near
         hour going back `hours` from the timestamp."""
-        text, begin, end = TimeMethods.get_hour_blocks(1609251250, 11)
+        text, begin, end = dotautil.TimeMethods.get_hour_blocks(1609251250, 11)
 
         self.assertEqual(text[0], "20201229_1400")
         self.assertEqual(text[-1], "20201229_0400")
@@ -239,7 +205,7 @@ class TestWinRatePickRate(TestDB):
 
         win_rate_pick_rate.main(days=1, skill=1)
 
-        engine, session = db_util.connect_database()
+        engine, _ = db_util.connect_database()
         stmt = "select * from dota_hero_win_rate"
 
         df_out = pd.read_sql(stmt, engine)
@@ -253,58 +219,6 @@ class TestWinRatePickRate(TestDB):
         self.assertEqual(
             50,
             sum(df_out[['radiant_total', 'dire_total']].sum(axis=1)))
-
-
-class TestBitmasks(unittest.TestCase):
-    """Test code which encodes herolist to a bitmask and vice-versa"""
-
-    def test_bitmask(self):
-        """Test code which encodes herolist to a bitmask and vice-versa"""
-
-        # Check some hand-selected patterns
-        test_patterns = [
-            [1, 2, 3],                # Basic
-            [1, 63, 64, 123, 124],    # Test edges
-            [28, 17, 93, 66, 26],     # From real games
-            [23, 104, 9, 31, 8],  # From real games
-        ]
-
-        for test_pattern in test_patterns:
-            enc = Bitmask.encode_heroes_bitmask(test_pattern)
-            dec = Bitmask.decode_heroes_bitmask(enc)
-            self.assertEqual(set(test_pattern), set(dec))
-
-        # Check all the numbers [1,189]
-        results = []
-        for idx in [t+1 for t in range(188)]:
-            enc = Bitmask.encode_heroes_bitmask([idx])
-            self.assertTrue(all([t <= BIGINT for t in enc]))
-            dec = Bitmask.decode_heroes_bitmask(enc)
-            results.append(idx == dec[0])
-        self.assertTrue(all(results))
-
-        # Check where clause generation, check edge cases
-        self.assertEqual(Bitmask.where_bitmask(1),
-                         "WHERE hero_mask_low & 2 = 2")
-        self.assertEqual(Bitmask.where_bitmask(63),
-                         "WHERE hero_mask_low & 9223372036854775808 = "
-                         "9223372036854775808")
-        self.assertEqual(Bitmask.where_bitmask(64),
-                         "WHERE hero_mask_mid & 1 = 1")
-        self.assertEqual(Bitmask.where_bitmask(127),
-                         "WHERE hero_mask_mid & 9223372036854775808 = "
-                         "9223372036854775808")
-        self.assertEqual(Bitmask.where_bitmask(128),
-                         "WHERE hero_mask_high & 1 = 1")
-
-        # Exceptions
-        with self.assertRaises(Exception) as context:
-            Bitmask.encode_heroes_bitmask([0])
-        self.assertEqual(str(context.exception), "Hero out of range 0")
-
-        with self.assertRaises(Exception) as context:
-            Bitmask.encode_heroes_bitmask([200])
-        self.assertEqual(str(context.exception), "Hero out of range 200")
 
 
 class TestMLEncoding(unittest.TestCase):
@@ -329,7 +243,8 @@ class TestMLEncoding(unittest.TestCase):
         dire_heroes = [t[5:] for t in test_heroes]
 
         # First order matrix... this routine is vectorized over matches
-        self.x1_test = MLEncoding.first_order_vector(rad_heroes, dire_heroes)
+        self.x1_test = dotautil.MLEncoding.first_order_vector(
+            rad_heroes, dire_heroes)
 
         # Second order matrix is upper triangular, without the diagonal,
         # rolled out. This is whether or not a team/enemy hero pair exists
@@ -340,8 +255,10 @@ class TestMLEncoding(unittest.TestCase):
         # matrices
         counter = 0
         for heroes in test_heroes:
-            x2_mat = MLEncoding.second_order_hmatrix(heroes[0:5], heroes[5:])
-            self.x2_test[counter, :] = MLEncoding.flatten_second_order_upper(
+            x2_mat = dotautil.MLEncoding.second_order_hmatrix(
+                heroes[0:5], heroes[5:])
+            self.x2_test[counter, :] = \
+                dotautil.MLEncoding.flatten_second_order_upper(
                 x2_mat)
             counter = counter+1
 
@@ -374,7 +291,7 @@ class TestMLEncoding(unittest.TestCase):
                            [0, 0, 0, 8, 9],
                            [0, 0, 0, 0, 10],
                            [0, 0, 0, 0, 0]])
-        flat_a = MLEncoding.flatten_second_order_upper(simple)
+        flat_a = dotautil.MLEncoding.flatten_second_order_upper(simple)
         flat_b = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
         self.assertTrue(np.all(flat_a == flat_b))
 
@@ -386,7 +303,7 @@ class TestMLEncoding(unittest.TestCase):
                               [-3, -6, -8,   0, 10],
                               [-4, -7, -9, -10,  0]
                               ])
-        simple2_b = MLEncoding.unflatten_second_order_upper(flat_a)
+        simple2_b = dotautil.MLEncoding.unflatten_second_order_upper(flat_a)
         self.assertTrue(np.all(simple2_a == simple2_b))
 
     def test_second_order_hmatrix(self):
@@ -429,8 +346,8 @@ class TestMLEncoding(unittest.TestCase):
 
         wins = [1, 0, 1, 0, 1]
 
-        _, _, _, x3_data = MLEncoding.create_features(rad, dire, wins,
-                                                      verbose=False)
+        _, _, _, x3_data = dotautil.MLEncoding.create_features(
+            rad, dire, wins, verbose=False)
 
         # Convert to hero index from hero number
         rad_idx = []
@@ -450,7 +367,7 @@ class TestMLEncoding(unittest.TestCase):
         self.assertEqual(fourth[idx_hero2_dire+meta.NUM_HEROES], -1)
 
         # Now check 2nd order encoding for same match
-        upper = MLEncoding.unflatten_second_order_upper(
+        upper = dotautil.MLEncoding.unflatten_second_order_upper(
                             fourth[2*meta.NUM_HEROES:], mirror=False)
 
         # hero: [116, 116, 116, 116, 116]
@@ -486,7 +403,8 @@ class TestWinRatePosition(TestDB):
                 match.radiant_win
             ))
 
-        hml = HeroMaxLikelihood(os.path.join("analytics", "prior_final.json"))
+        hml = win_rate_position.HeroMaxLikelihood(
+            os.path.join("analytics", "prior_final.json"))
         total_win_mat, total_count_mat = hml.matches_to_summary(rows)
 
         # 6 matches * 5 heroes, 1 winning each game = 30 wins, 60 total

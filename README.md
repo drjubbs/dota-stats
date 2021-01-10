@@ -32,13 +32,15 @@ Each of these factors are normalized so role (farm position) totals 1. Prior to 
 
 After cloning the repository, it is suggested that you setup a virtual environment and install the required python packages.
 
-	cd dota_stats
-	python3 -m venv env
-	source env/bin/activate
-	pip install --upgrade pip
-	pip install -i requirements.txt
+```bash
+cd dota-stats
+python3 -m venv env
+source env/bin/activate
+pip install --upgrade pip
+pip install -i requirements.txt
+```
 
-I have found it helpful to use small utility shell script(s), which also sets environmental variables the setup and program will need.
+I have found it helpful to use small utility shell script(s), which also sets environmental variables the setup and program will need. `PYTHONPATH` should be set properly so the package operates correctly.
 
 ```
 $ cat 'env.sh'
@@ -46,9 +48,10 @@ export STEAM_KEY=0D3D2....
 export DOTA_DB_URI=mysql://dota:password@localhost/dota
 export DOTA_LOGGING=0
 export DOTA_THREADS=8
-
 export FLASK_APP=server.py
-source env/bin/activate
+export PYTHONPATH=$PYTHONPATH:$HOME/dota-stats
+
+source dota-stats/env/bin/activate
 ```
 
 ## MariaDB/MySQL
@@ -195,7 +198,7 @@ Restart the supervisor service: `sudo systemctl restart supervisor`. Now request
 Remove the `crontab` jobs and shutdown `supervisor`. Use `killall` to remove all running instances of python and Gunicorn under the standard user. Restart MariaDB/mySQL.
 
 ```
-mysqldump --compact --compress --opt --databases dota -u dota -p | gzip > backup.sql.gz &
+mysqldump --compact --compress --opt --databases dota -u dota -p | gzip > backup.sql.gz
 ```
 
 # TODO

@@ -4,7 +4,8 @@ import re
 import time
 import requests
 from bs4 import BeautifulSoup
-import meta
+from dota_stats import meta
+
 
 def main():
     """Main entry point"""

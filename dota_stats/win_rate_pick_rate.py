@@ -9,10 +9,7 @@ import sys
 import datetime as dt
 import json
 import pandas as pd
-import db_util
-import dotautil
-import meta
-
+from dota_stats import db_util, dotautil, meta
 
 # Logging
 log = logging.getLogger("prwr")

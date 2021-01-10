@@ -4,14 +4,11 @@ SQLAlchemy to deal with concurrency.
 """
 import json
 import os
-import sys
 import plotly
 import plotly.graph_objs as go
 from flask import Flask, render_template
 from flask_sqlalchemy import SQLAlchemy
-sys.path.append("..")
-import win_rate_pick_rate
-import fetch_summary
+from dota_stats import win_rate_pick_rate, fetch_summary
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DOTA_DB_URI']

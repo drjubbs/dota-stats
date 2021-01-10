@@ -35,8 +35,8 @@ from concurrent import futures
 import datetime as dt
 import requests
 import numpy as np
-import meta
-from db_util import Match, connect_database
+from dota_stats import meta
+from dota_stats.db_util import Match, connect_database
 
 
 # Globals
@@ -490,10 +490,10 @@ def main():
     counter = 1
 
     for hero in heroes:
-        log.info("-------------------------------------------------------------")
-        log.info(">>>>>>>> Hero: %s %d/%d Skill: %d <<<<<<<<", meta.HERO_DICT[hero], counter,
-                 len(heroes), skill)
-        log.info("-------------------------------------------------------------")
+        log.info("---------------------------------------------------------")
+        log.info(">>>>>>>> Hero: %s %d/%d Skill: %d <<<<<<<<",
+                 meta.HERO_DICT[hero], counter, len(heroes), skill)
+        log.info("---------------------------------------------------------")
         fetch_matches(session, hero, skill, executor)
         counter += 1
         session.commit()

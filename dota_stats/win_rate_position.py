@@ -9,7 +9,7 @@ from itertools import permutations
 import mariadb
 import pandas as pd
 import numpy as np
-import meta
+from dota_stats import meta
 
 MATCH_CUTOFF = 30  # Number of matches needed to calculate winrate
 

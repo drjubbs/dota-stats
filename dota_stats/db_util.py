@@ -4,7 +4,6 @@ classes and functionality.
 """
 import os
 import argparse
-from datetime import datetime
 from sqlalchemy import create_engine, Column, CHAR, VARCHAR, BigInteger, \
     Integer, String
 from sqlalchemy.dialects.mysql import TINYINT

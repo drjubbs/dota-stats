@@ -10,7 +10,7 @@ import datetime as dt
 import pandas as pd
 import pytz
 import dotautil
-from db_util import FetchSummary, connect_database
+from dota_stats.db_util import FetchSummary, connect_database
 
 
 def isoformat_with_tz(time_obj, utc_hour):
