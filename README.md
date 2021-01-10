@@ -54,6 +54,18 @@ export PYTHONPATH=$PYTHONPATH:$HOME/dota-stats
 source dota-stats/env/bin/activate
 ```
 
+You can check this setup:
+
+```
+(env)$ python
+Python 3.7.3 (default, Jul 25 2020, 13:03:44)
+>>> from dota_stats import meta
+>>> meta.NUM_HEROES
+120
+```
+
+
+
 ## MariaDB/MySQL
 
 Proceed to follow instructions to setup MariaDB on your platform.   You may need to allow remote access if your analysis machine is different from your database, this usually involves setting the `bind-address` in MariaDB to `0.0.0.0` or commenting out that line.
@@ -111,8 +123,8 @@ Next create a basic shell script (`fetch.sh`) which activates the virtual enviro
 
 ```
 #!/bin/bash
-cd dota-stats
-source env.sh
+source env_prod.sh
+cd dota-stats/dota_stats
 mkdir -p log
 
 export DATESTR=`date +"%Y%m%d_%H%M"`
@@ -120,7 +132,7 @@ for SKILL in 1 2 3;
 do
         python fetch.py all $SKILL &>> log/fetch_$DATESTR.log
         python fetch_summary.py 3 &>> log/fetch_$DATESTR.log
-        python fetch_win_rate.py 1 &>> log/fetch_$DATESTR.log
+        python win_rate_pick_rate.py 3 $SKILL &>> log/fetch_$DATESTR.log
 done
 ```
 
