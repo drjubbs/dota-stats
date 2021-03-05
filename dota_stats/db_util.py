@@ -3,7 +3,9 @@
 classes and functionality.
 """
 import os
+import sys
 import argparse
+import logging
 from datetime import datetime as dt
 from sqlalchemy import create_engine, Column, CHAR, VARCHAR, BigInteger, \
     Integer, String
@@ -13,6 +15,19 @@ from sqlalchemy.orm import sessionmaker
 
 DB_URI = os.environ['DOTA_DB_URI']
 Base = declarative_base()
+
+# Logging
+log = logging.getLogger("dota")
+if int(os.environ['DOTA_LOGGING']) == 0:
+    log.setLevel(logging.INFO)
+else:
+    log.setLevel(logging.DEBUG)
+ch = logging.StreamHandler(sys.stdout)
+fmt = logging.Formatter(
+        fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt="%Y-%m-%dT%H:%M:%S %Z")
+ch.setFormatter(fmt)
+log.addHandler(ch)
 
 # ----------------------------------------------------------------------------
 # ORM Classes
@@ -143,22 +158,35 @@ def purge_database(days):
 
     engine, _ = connect_database()
 
-    """
     tbl_col = [
-                ("dota_matches", "start_time"),
-                ("dota_hero_win_rate", "time"),
-                #("dota_hero_matchup", "start_time"),
+                # ("dota_matches", "start_time"),
+                # ("dota_hero_win_rate", "time"),
+                ("dota_hero_matchup", "start_time"),
                ]
     with engine.connect() as conn:
         for table, col in tbl_col:
             stmt = "SELECT COUNT(*) FROM {0} WHERE {1}<={2}".format(
                 table, col, cutoff)
             rec_set = conn.execute(stmt)
-            print("{0} purge = {1}".format(table, rec_set.first()[0]))
+            log.info("Beginning record cut for purge")
+            log.info("{0} purge = {1}".format(table, rec_set.first()[0]))
 
-            stmt = "DELETE FROM {0} WHERE {1}<={2}".format(table, col, cutoff)
+            log.info("Beginning record cut for keep")
+            stmt = "SELECT COUNT(*) FROM {0} WHERE {1}>{2}".format(
+                table, col, cutoff)
+            rec_set = conn.execute(stmt)
+            log.info("{0} keep = {1}".format(table, rec_set.first()[0]))
+
+            log.info("Beginning record copy")
+            stmt = "INSERT INTO {0} SELECT * FROM {1} WHERE {2}>{3}".format(
+                table+"_tmp", table, col, cutoff)
+            log.info(stmt)
             conn.execute(stmt)
-    """
+            log.info("Finished temporary record transfer")
+
+            # stmt = "DELETE FROM {0} WHERE {1}<={2}".format(table, col, cutoff)
+            # conn.execute(stmt)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Database utilities")
