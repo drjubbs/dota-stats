@@ -36,7 +36,7 @@ import datetime as dt
 import requests
 import numpy as np
 from dota_stats import meta
-from dota_stats.db_util import Match, connect_database
+from dota_stats.db_util import Match, connect_database, HeroMatchup
 
 
 # Globals
@@ -331,6 +331,39 @@ def write_matches(session, matches):
         session.merge(match)
         session.commit()
         # pylint: enable=no-member
+
+        for rhero in summary['radiant_heroes']:
+            for dhero in summary['dire_heroes']:
+                hero_matchup = HeroMatchup()
+                hero_matchup.match_hero_hero = "{0}_{1:03}_{2:03}".format(
+                    summary['match_id'], rhero, dhero
+                )
+                hero_matchup.start_time = summary['start_time']
+                hero_matchup.api_skill = summary['api_skill']
+                hero_matchup.hero1 = rhero
+                hero_matchup.hero2 = dhero
+                if summary['radiant_win'] is True:
+                    hero_matchup.win = 1
+                else:
+                    hero_matchup.win = 0
+                session.merge(hero_matchup)
+
+        for dhero in summary['dire_heroes']:
+            for rhero in summary['radiant_heroes']:
+                hero_matchup = HeroMatchup()
+                hero_matchup.match_hero_hero = "{0}_{1:03}_{2:03}".format(
+                    summary['match_id'], dhero, rhero
+                )
+                hero_matchup.start_time = summary['start_time']
+                hero_matchup.api_skill = summary['api_skill']
+                hero_matchup.hero1 = dhero
+                hero_matchup.hero2 = rhero
+                if summary['radiant_win'] == True:
+                    hero_matchup.win = 0
+                else:
+                    hero_matchup.win = 1
+                session.merge(hero_matchup)
+        session.commit()
 
 
 def process_matches(session, match_ids, hero, skill, executor):

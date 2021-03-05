@@ -4,6 +4,7 @@ classes and functionality.
 """
 import os
 import argparse
+from datetime import datetime as dt
 from sqlalchemy import create_engine, Column, CHAR, VARCHAR, BigInteger, \
     Integer, String
 from sqlalchemy.dialects.mysql import TINYINT
@@ -58,6 +59,18 @@ class HeroWinRate(Base):
     dire_win = Column(Integer)
     dire_total = Column(Integer)
 
+
+class HeroMatchup(Base):
+    """Individual hero match-ups, mainly for indexing"""
+    __tablename__ = 'dota_hero_matchup'
+
+    match_hero_hero = Column(String(20), primary_key=True)
+    start_time = Column(BigInteger)
+    api_skill = Column(Integer)
+    hero1 = Column(Integer)
+    hero2 = Column(Integer)
+    win = Column(Integer)
+
 # pylint: enable=too-few-public-methods, no-member
 # -----------------------------------------------------------------------------
 # Database Functions
@@ -90,7 +103,9 @@ def create_database():
     engine, _ = connect_database()
     with engine.connect() as conn:
         for table in engine.table_names():
-            conn.execute("DROP TABLE {};".format(table))
+            stmt = "DROP TABLE {};".format(table)
+            print(stmt)
+            conn.execute(stmt)
 
         # dota_matches
         stmt = "CREATE TABLE dota_matches (match_id BIGINT PRIMARY KEY, " \
@@ -117,16 +132,48 @@ def create_database():
                "dire_win INT, dire_total INT, dire_win_pct FLOAT, win INT, " \
                "total INT, win_pct FLOAT) ENGINE='MyISAM'; "
         conn.execute(stmt)
+        print("Don't forget to run alembic upgrade head")
 
+
+def purge_database(days):
+    """Purge all records older than `days`."""
+
+    now = dt.utcnow().timestamp()
+    cutoff = int(now - (days*24*60*60))
+
+    engine, _ = connect_database()
+
+    """
+    tbl_col = [
+                ("dota_matches", "start_time"),
+                ("dota_hero_win_rate", "time"),
+                #("dota_hero_matchup", "start_time"),
+               ]
+    with engine.connect() as conn:
+        for table, col in tbl_col:
+            stmt = "SELECT COUNT(*) FROM {0} WHERE {1}<={2}".format(
+                table, col, cutoff)
+            rec_set = conn.execute(stmt)
+            print("{0} purge = {1}".format(table, rec_set.first()[0]))
+
+            stmt = "DELETE FROM {0} WHERE {1}<={2}".format(table, col, cutoff)
+            conn.execute(stmt)
+    """
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Database utilities")
     parser.add_argument('--create', action='store_true',
                         help='Create a new database, this will DELETE ALL '
                              'DATABASE DATA.')
+
+    parser.add_argument('--purge', action='store', type=int,
+                        help='Purge all records older than N days.')
+
     opts = parser.parse_args()
 
     if opts.create:
         create_database()
+    elif opts.purge is not None:
+        purge_database(opts.purge)
     else:
         parser.print_help()
