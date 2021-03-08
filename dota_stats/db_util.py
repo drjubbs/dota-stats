@@ -4,6 +4,9 @@ classes and functionality.
 """
 import os
 import argparse
+import logging
+import sys
+from datetime import datetime as dt
 from sqlalchemy import create_engine, Column, CHAR, VARCHAR, BigInteger, \
     Integer, String
 from sqlalchemy.dialects.mysql import TINYINT
@@ -12,6 +15,19 @@ from sqlalchemy.orm import sessionmaker
 
 DB_URI = os.environ['DOTA_DB_URI']
 Base = declarative_base()
+
+# Logging
+log = logging.getLogger("purge")
+if int(os.environ['DOTA_LOGGING']) == 0:
+    log.setLevel(logging.INFO)
+else:
+    log.setLevel(logging.DEBUG)
+ch = logging.StreamHandler(sys.stdout)
+fmt = logging.Formatter(
+        fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt="%Y-%m-%dT%H:%M:%S %Z")
+ch.setFormatter(fmt)
+log.addHandler(ch)
 
 # ----------------------------------------------------------------------------
 # ORM Classes
@@ -83,6 +99,39 @@ def get_max_start_time():
     return int(rows.first()[0])
 
 
+def purge_database(days):
+    """Purge all records older than `days` relative to current time."""
+
+    now = dt.utcnow().timestamp()
+    cutoff = int(now - (days*24*60*60))
+
+    engine, _ = connect_database()
+
+    tbl_col = [
+                ("dota_matches", "start_time"),
+                ("dota_hero_win_rate", "time"),
+               ]
+    with engine.connect() as conn:
+        for table, col in tbl_col:
+            stmt = "SELECT COUNT(*) FROM {0} WHERE {1}<={2}".format(
+                table, col, cutoff)
+            num_delete = conn.execute(stmt)
+
+            stmt = "SELECT COUNT(*) FROM {0} WHERE {1}>{2}".format(
+                table, col, cutoff)
+            num_save = conn.execute(stmt)
+
+            log.info("{0:20} purging = {1:15}".format(
+                table, num_delete.first()[0]))
+            log.info("{0:20} saving  = {1:15}".format(
+                table, num_save.first()[0]))
+
+            log.info("Beginning record DELETE")
+            stmt = "DELETE FROM {0} WHERE {1}<={2}".format(table, col, cutoff)
+            conn.execute(stmt)
+            log.info("End record DELETE")
+
+
 def create_database():
     """Create the clean database tables"""
 
@@ -124,9 +173,15 @@ if __name__ == "__main__":
     parser.add_argument('--create', action='store_true',
                         help='Create a new database, this will DELETE ALL '
                              'DATABASE DATA.')
+    parser.add_argument('--purge', action='store', type=int,
+                        help='Purge the database of records older than PURGE '
+                             'from the current time.')
+
     opts = parser.parse_args()
 
     if opts.create:
         create_database()
+    elif opts.purge is not None:
+        purge_database(opts.purge)
     else:
         parser.print_help()
