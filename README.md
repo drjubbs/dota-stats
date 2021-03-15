@@ -117,6 +117,46 @@ INFO  [alembic.runtime.migration] Running upgrade 921d6d16a9ee -> c71c3f058b8c, 
 ...
 ```
 
+## MongoDB
+
+Create the admin user:
+
+```
+mongo --port 27017
+
+use admin
+db.createUser(
+  {
+    user: "admin",
+    pwd: "password1",
+    roles: [ { role: "userAdminAnyDatabase", db: "admin" }, "readWriteAnyDatabase" ]
+  }
+)
+quit()
+```
+
+Edit the configuration to use authentication and restart the service (uncomment the line `auth = True` **Future: Change location of database to be on attached storage for easy of backup**
+
+```
+$ sudo vim /etc/mongodb.conf
+$ sudo systemctl restart mongodb
+```
+
+Log back on as admin and create a new database and user:
+
+```
+$ mongo --port 27017  --authenticationDatabase "admin" -u "admin" -p
+use dota
+db.createUser(
+  {
+    user: "dota",
+    pwd:  "password2",
+    roles: [ { role: "readWrite", db: "dota" } ]
+
+  }
+)
+```
+
 ## Automation/Crontab
 
 Next create a basic shell script (`fetch.sh`) which activates the virtual environment and runs the scripts with the required options. 

@@ -34,6 +34,7 @@ from functools import partial
 from concurrent import futures
 import datetime as dt
 import requests
+from pymongo import MongoClient
 import numpy as np
 from dota_stats import meta
 from dota_stats.db_util import Match, connect_database
@@ -313,10 +314,15 @@ def process_match(hero, skill, match_id):
         return None
 
 
-def write_matches(session, matches):
+def write_matches(session, mongo, matches):
     """Write matches to database"""
 
     for summary in matches:
+
+        # ---------------------------------------------------------------------
+        # MySQL Writes
+        # ---------------------------------------------------------------------
+
         match = Match()
         match.match_id = summary['match_id']
         match.start_time = summary['start_time']
@@ -332,8 +338,31 @@ def write_matches(session, matches):
         session.commit()
         # pylint: enable=no-member
 
+        # ---------------------------------------------------------------------
+        # MongoDB Writes
+        # ---------------------------------------------------------------------
 
-def process_matches(session, match_ids, hero, skill, executor):
+        # Index by time + match to speed up searching
+        key = "{0:1d}_{1:010d}_{2:012d}".format(
+            summary['api_skill'],
+            summary['start_time'],
+            summary['match_id'],
+        )
+
+        summary['_id'] = key
+
+        radiant = [meta.HERO_DICT[int(t)] for t in summary['radiant_heroes']]
+        for hero in radiant:
+            summary["rh-"+hero] = 1
+
+        dire = [meta.HERO_DICT[int(t)] for t in summary['dire_heroes']]
+        for hero in dire:
+            summary["dh-"+hero] = 1
+
+        mongo.dota.matches.insert_one(summary)
+
+
+def process_matches(session, mongo, match_ids, hero, skill, executor):
     """Loop over all match_ids, parsing JSON output and writing
     to database.
     """
@@ -352,7 +381,7 @@ def process_matches(session, match_ids, hero, skill, executor):
 
     if matches is not None:
         log.info("%d valid matches to write to database", len(matches))
-        write_matches(session, matches)
+        write_matches(session, mongo, matches)
 
 
 def fetch_matches_loop(url, skill, start_at_match_id, hero):
@@ -380,7 +409,7 @@ def fetch_matches_loop(url, skill, start_at_match_id, hero):
     return resp
 
 
-def fetch_matches(session, hero, skill, executor):
+def fetch_matches(session, mongo, hero, skill, executor):
     """Gets list of matches by page. This is just the index, not the
     individual match results.
     """
@@ -399,7 +428,7 @@ def fetch_matches(session, hero, skill, executor):
 
         if resp['num_results'] > 0:
             match_ids = [t['match_id'] for t in resp['matches']]
-            process_matches(session, match_ids, hero, skill, executor)
+            process_matches(session, mongo, match_ids, hero, skill, executor)
             start_at_match_id = min(match_ids)-1
 
         # Set dictionary for start time so we don't fetch multiple times,
@@ -464,6 +493,9 @@ def main():
     # Database connection
     engine, session = connect_database()
 
+    # Mongo connection
+    mongo = MongoClient(os.environ['DOTA_MONGO_URI'])
+
     # Populate dictionary with matches we already have within
     # INITIAL_HORIZON (don't refetch there)
 
@@ -494,7 +526,7 @@ def main():
         log.info(">>>>>>>> Hero: %s %d/%d Skill: %d <<<<<<<<",
                  meta.HERO_DICT[hero], counter, len(heroes), skill)
         log.info("---------------------------------------------------------")
-        fetch_matches(session, hero, skill, executor)
+        fetch_matches(session, mongo, hero, skill, executor)
         counter += 1
         session.commit()
 

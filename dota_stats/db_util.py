@@ -12,6 +12,7 @@ from sqlalchemy import create_engine, Column, CHAR, VARCHAR, BigInteger, \
 from sqlalchemy.dialects.mysql import TINYINT
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from pymongo import MongoClient
 
 DB_URI = os.environ['DOTA_DB_URI']
 Base = declarative_base()
@@ -166,6 +167,12 @@ def create_database():
                "dire_win INT, dire_total INT, dire_win_pct FLOAT, win INT, " \
                "total INT, win_pct FLOAT) ENGINE='MyISAM'; "
         conn.execute(stmt)
+
+    # Repeat for mongo DB
+    mongo = MongoClient(os.environ['DOTA_MONGO_URI'])
+    for collection in mongo.dota.list_collection_names():
+        log.info("MongoDB Dropping '{0}'".format(collection))
+        mongo.dota[collection].drop()
 
 
 if __name__ == "__main__":
