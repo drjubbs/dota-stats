@@ -135,7 +135,7 @@ db.createUser(
 quit()
 ```
 
-Edit the configuration to use authentication and restart the service (uncomment the line `auth = True` **Future: Change location of database to be on attached storage for easy of backup**
+Edit the configuration to use authentication and restart the service (uncomment the line `auth = True`. If desired, change the location of the storage for easy of backup **TODO: Check to see this actually contains enough for a proper backup**.
 
 ```
 $ sudo vim /etc/mongodb.conf
@@ -152,6 +152,15 @@ db.createUser(
     user: "dota",
     pwd:  "password2",
     roles: [ { role: "readWrite", db: "dota" } ]
+
+  }
+)
+use dotadev
+db.createUser(
+  {
+    user: "dotadev",
+    pwd:  "password3",
+    roles: [ { role: "readWrite", db: "dotadev" } ]
 
   }
 )
@@ -255,6 +264,20 @@ mysqldump --compact --compress --opt --databases dota -u dota -p | gzip > backup
 
 # TODO
 
+- MongoDB Migration Unit Testing
+  
+  - Back-end testing protocol
+    - Write routine to dump ~5 records to file using fetch.py (one-time use)
+    - Load records from file into MongoDB database
+    - Confirm get_max_start_time is working properly vs. file
+    - Confirm that get_hour_blocks brackets this max time on the first block of records
+    - Confirm that fetch.py loads the correct number of previous records on start-up
+    - Confirm that pick_rate_win_rate is processing the same number of records from fetch
+    - Confirm that pick_rate_win_rate creates the correct win rates for a handful of heroes
+    - Confirm that a database purge removes the correct number of records for 0 and 1 day time horizons (use override to prevent UTC based purging)
+  - Add additional fields (gpm/xpm), also look at items dictionary, it looks like hero numbers are stored as strings?
+  - Performance testing on all the steps relative to MariaDB
+  
 - Front-end
   
   - Format tweaks are needed to get proper display for mobile; responsive design for plotly graphs

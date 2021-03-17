@@ -8,11 +8,11 @@ import numpy as np
 import pandas as pd
 import fetch
 from dota_stats import meta, db_util, win_rate_pick_rate, dotautil, \
-    fetch_summary, win_rate_position
+    win_rate_position
 
 # Globals
-BIGINT = 9223372036854775808    # Max bitmask
-DUMP_BUG = None                 # Set to none for no dump
+BIGINT = 9223372036854775808  # Max bitmask
+DUMP_BUG = None  # Set to none for no dump
 
 
 class TestDumpBug(unittest.TestCase):
@@ -43,33 +43,28 @@ class TestDB(unittest.TestCase):
         """Setup database for testing"""
 
         # Bail if we're not in development...
-        if os.environ['DOTA_DB_URI'].split("/")[-1] != "dota_dev":
+        if os.environ['DOTA_MONGO_DB'] != "dotadev":
             raise NotImplementedError("Must be on development environment!")
 
         # Create and upgrade database
         db_util.create_database()
-        os.system("alembic upgrade head >/dev/null 2>&1")
 
-        cls.engine, cls.session = db_util.connect_database()
+        cls.mongo_db = db_util.connect_mongo()
 
         # Populate tables
-        filename = os.path.join("testing", "test_database.txt")
+        filename = os.path.join("testing", "mongo_test_db.json")
         with open(filename, "r") as filehandle:
-            db_txt = filehandle.read()
+            db_txt = json.loads(filehandle.read())
 
-        conn = cls.engine.connect()
-        for stmt in db_txt.split("\n"):
-            conn.execute(stmt)
+        cls.mongo_db.matches.insert_many(db_txt)
 
-    def test_dummy(self):
-        """Dummy routine to ensure class setUp and tearDown are called.
-        This will eventually contain code which tests the upgrade prcoess.
-        process.
-        """
-        self.assertEqual(1, 1)
+    def test_load(self):
+        """Check that the database loaded the number of records in the
+        JSON test database."""
+        self.assertEqual(self.mongo_db.matches.count_documents({}), 4)
 
     def tearDown(self):
-        self.session.close()
+        pass
 
 
 class TestFetchSummary(unittest.TestCase):
@@ -173,7 +168,7 @@ class TestFetch(TestDB):
         match_id = match['match_id']
         fetch.write_matches(self.session, [match])
 
-        match_read = self.session.query(db_util.Match).\
+        match_read = self.session.query(db_util.Match). \
             filter(db_util.Match.match_id == match_id).first()
 
         self.assertEqual(match_read.match_id, match['match_id'])
@@ -248,8 +243,8 @@ class TestMLEncoding(unittest.TestCase):
 
         # Second order matrix is upper triangular, without the diagonal,
         # rolled out. This is whether or not a team/enemy hero pair exists
-        self.x2_test = np.zeros([len(test_heroes), int(num_heroes*(
-                num_heroes-1)/2)], dtype='b')
+        self.x2_test = np.zeros([len(test_heroes), int(num_heroes * (
+                num_heroes - 1) / 2)], dtype='b')
 
         # Loop over all 'fake matches' and flatten first and second order
         # matrices
@@ -259,8 +254,8 @@ class TestMLEncoding(unittest.TestCase):
                 heroes[0:5], heroes[5:])
             self.x2_test[counter, :] = \
                 dotautil.MLEncoding.flatten_second_order_upper(
-                x2_mat)
-            counter = counter+1
+                    x2_mat)
+            counter = counter + 1
 
     def test_first_order_vector(self):
         """Test the first oder mapping """
@@ -273,11 +268,11 @@ class TestMLEncoding(unittest.TestCase):
 
         # First half should sum to 5
         sum_radiant = self.x1_test[:, 0:meta.NUM_HEROES].sum(axis=1)
-        sum_check = np.ones([len(sum_radiant), 1])*5
+        sum_check = np.ones([len(sum_radiant), 1]) * 5
         self.assertTrue(np.all(sum_radiant == sum_check))
 
         # First half should sum to -5
-        sum_dire = self.x1_test[:, meta.NUM_HEROES:2*meta.NUM_HEROES].sum(
+        sum_dire = self.x1_test[:, meta.NUM_HEROES:2 * meta.NUM_HEROES].sum(
             axis=1)
         sum_check = -1 * sum_check
         self.assertTrue(np.all(sum_dire == sum_check))
@@ -297,11 +292,11 @@ class TestMLEncoding(unittest.TestCase):
 
         # When we unflatten, the upper triangle will be mirrored
         # and reflected over the diagonal which is still zero
-        simple2_a = np.array([[0,   1,  2,   3,  4],
-                              [-1,  0,  5,   6,  7],
-                              [-2, -5,  0,   8,  9],
-                              [-3, -6, -8,   0, 10],
-                              [-4, -7, -9, -10,  0]
+        simple2_a = np.array([[0, 1, 2, 3, 4],
+                              [-1, 0, 5, 6, 7],
+                              [-2, -5, 0, 8, 9],
+                              [-3, -6, -8, 0, 10],
+                              [-4, -7, -9, -10, 0]
                               ])
         simple2_b = dotautil.MLEncoding.unflatten_second_order_upper(flat_a)
         self.assertTrue(np.all(simple2_a == simple2_b))
@@ -317,10 +312,10 @@ class TestMLEncoding(unittest.TestCase):
 
         row_sum = self.x2_test.sum(axis=1)
         # Upper limit
-        upper = (np.ones(self.x2_test.shape[0])*25).reshape(
+        upper = (np.ones(self.x2_test.shape[0]) * 25).reshape(
             self.x2_test.shape[0], 1)
         # Lower limit
-        lower = (np.ones(self.x2_test.shape[0])*-25).reshape(
+        lower = (np.ones(self.x2_test.shape[0]) * -25).reshape(
             self.x2_test.shape[0], 1)
 
         self.assertEqual(row_sum[0], 25)
@@ -364,27 +359,27 @@ class TestMLEncoding(unittest.TestCase):
 
         # Should be zero for radiant "first order" and -1 for dire...
         self.assertEqual(fourth[idx_hero2_dire], 0)
-        self.assertEqual(fourth[idx_hero2_dire+meta.NUM_HEROES], -1)
+        self.assertEqual(fourth[idx_hero2_dire + meta.NUM_HEROES], -1)
 
         # Now check 2nd order encoding for same match
         upper = dotautil.MLEncoding.unflatten_second_order_upper(
-                            fourth[2*meta.NUM_HEROES:], mirror=False)
+            fourth[2 * meta.NUM_HEROES:], mirror=False)
 
         # hero: [116, 116, 116, 116, 116]
         # other team: [113, 72, 0, 27, 117]
-        hero_idx = 5*[idx_hero2_dire]
+        hero_idx = 5 * [idx_hero2_dire]
         enemy_idx = rad_idx[3]
 
         # Only the last entry should hold -1
         self.assertTrue(all(np.isclose(
             upper[(hero_idx, enemy_idx)],
-            np.array([0.,  0.,  0.,  0., -1.])
+            np.array([0., 0., 0., 0., -1.])
         )))
 
         # Flipping around everything but the last should be populated
         self.assertTrue(all(np.isclose(
             upper[(enemy_idx, hero_idx)],
-            np.array([1.,  1.,  1.,  1., 0.])
+            np.array([1., 1., 1., 1., 0.])
         )))
 
 

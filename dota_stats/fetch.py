@@ -481,6 +481,9 @@ def main():
     query = {'_id': {'$gte': key_begin, '$lte': key_end}}
     rows1 = mongo_db.matches.find(query)
 
+    import pdb
+    pdb.set_trace()
+
     count = 0
     for row in rows1:
         MATCH_IDS[row['match_id']] = row['start_time']
