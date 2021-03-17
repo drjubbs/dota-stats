@@ -44,8 +44,8 @@ class TimeMethods:
         text = []
 
         for i in range(int(hours)):
-            end.append(time_hr - i * 3600)
-            begin.append(time_hr - (i + 1) * 3600)
+            end.append(time_hr - (i - 1) * 3600)
+            begin.append(time_hr - i * 3600)
             _, time_str = cls.get_time_nearest(end[-1])
             text.append(time_str)
 

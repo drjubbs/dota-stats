@@ -334,7 +334,7 @@ def write_matches(mongo_db, matches):
         for hero in dire:
             summary["dh-"+hero] = 1
 
-        mongo_db.dota.matches.insert_one(summary)
+        mongo_db.matches.insert_one(summary)
 
 
 def process_matches(mongo_db, match_ids, hero, skill, executor):
