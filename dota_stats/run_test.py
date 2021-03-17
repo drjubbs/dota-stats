@@ -198,22 +198,39 @@ class TestWinRatePickRate(TestDB):
     def test_win_rate_pick_rate(self):
         """Test code to calculate win rate vs. pick rate tables"""
 
-        win_rate_pick_rate.main(days=1, skill=1)
-
-        engine, _ = db_util.connect_database()
-        stmt = "select * from dota_hero_win_rate"
-
-        df_out = pd.read_sql(stmt, engine)
+        win_rate_pick_rate.main(days=1, skill=3)
+        df_out = win_rate_pick_rate.get_current_win_rate_table(1)
 
         # Integrity checks
         summary = df_out.sum()
         self.assertEqual(
             summary['radiant_win'] + summary['dire_win'],
-            25)
+            4 * 5)
         self.assertEqual(summary['radiant_total'], summary['dire_total'])
         self.assertEqual(
-            50,
+            4 * 5 + 4 * 5,
             sum(df_out[['radiant_total', 'dire_total']].sum(axis=1)))
+
+        # Individual heroes
+        self.assertEqual(
+            df_out[df_out['hero'] == 'anti-mage']['radiant_win'].values[0],
+            3
+        )
+
+        self.assertEqual(
+            df_out[df_out['hero'] == 'anti-mage']['dire_win'].values[0],
+            0
+        )
+
+        self.assertEqual(
+            df_out[df_out['hero'] == 'shadow-fiend']['radiant_win'].values[0],
+            2
+        )
+
+        self.assertEqual(
+            df_out[df_out['hero'] == 'silencer']['radiant_win'].values[0],
+            1
+        )
 
 
 class TestMLEncoding(unittest.TestCase):
