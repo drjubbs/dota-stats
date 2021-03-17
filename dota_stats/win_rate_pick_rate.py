@@ -6,8 +6,8 @@ import argparse
 import logging
 import os
 import sys
+import time
 import datetime as dt
-import json
 import pandas as pd
 from dota_stats import db_util, dotautil, meta
 
@@ -19,8 +19,8 @@ else:
     log.setLevel(logging.DEBUG)
 ch = logging.StreamHandler(sys.stdout)
 fmt = logging.Formatter(
-        fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt="%Y-%m-%dT%H:%M:%S %Z")
+    fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt="%Y-%m-%dT%H:%M:%S %Z")
 ch.setFormatter(fmt)
 log.addHandler(ch)
 
@@ -34,15 +34,17 @@ def parse_records(matches):
     dire_heroes = []
     dire_win = []
     dire_count = []
+    count = 0
 
     for match in matches:
-        rhs = json.loads(match.radiant_heroes)
-        dhs = json.loads(match.dire_heroes)
+
+        rhs = match['radiant_heroes']
+        dhs = match['dire_heroes']
 
         for hero in rhs:
             rad_heroes.append(hero)
             radiant_count.append(1)
-            if match.radiant_win == 1:
+            if match['radiant_win'] == 1:
                 radiant_win.append(1)
             else:
                 radiant_win.append(0)
@@ -50,10 +52,12 @@ def parse_records(matches):
         for hero in dhs:
             dire_heroes.append(hero)
             dire_count.append(1)
-            if match.radiant_win == 1:
+            if match['radiant_win'] == 1:
                 dire_win.append(0)
             else:
                 dire_win.append(1)
+
+        count += 1
 
     df_radiant = pd.DataFrame({'hero': rad_heroes,
                                'radiant_win': radiant_win,
@@ -67,57 +71,41 @@ def parse_records(matches):
     df_dire = df_dire.groupby("hero").sum()
     df_dire.reset_index(inplace=True)
 
-    df_total = pd.DataFrame({'hero':  meta.HEROES})
+    df_total = pd.DataFrame({'hero': meta.HEROES})
 
-    df_total = df_total.merge(df_radiant, how='left', on='hero').\
+    df_total = df_total.merge(df_radiant, how='left', on='hero'). \
         merge(df_dire, how='left', on='hero')
     df_total = df_total.fillna(0)
 
-    return df_total
+    return df_total, count
 
 
-def write_to_database(summary, skill, end_time):
+def write_to_database(mongo_db, summary, skill, end_time):
     """Update win rate data in database"""
-
-    rows = []
-    engine, _ = db_util.connect_database()
 
     # Coerce to integers
     summary = summary.astype('int')
 
     for _, row in summary.iterrows():
-        time_hero_skill = "{0}_H{1:03}_S{2}".format(
-            end_time, row['hero'], skill)
-
-        rows.append((
-                time_hero_skill,
-                end_time,
-                row['hero'],
-                skill,
-                row['radiant_win'],
-                row['radiant_total'],
-                row['dire_win'],
-                row['dire_total']))
-
-    conn = engine.raw_connection()
-    cursor = conn.cursor()
-    stmt = "REPLACE INTO dota_hero_win_rate VALUES (%s, %s, %s, %s, %s, %s, " \
-           "%s, %s)"
-    cursor.executemany(stmt, rows)
-    conn.commit()
+        doc_id = "{0:1}_{1:10}_{2:03}".format(skill, end_time, row['hero'])
+        doc = {
+            '_id': doc_id,
+            'time': end_time,
+            'hero': int(row['hero']),
+            'skill': skill,
+            'radiant_win': int(row['radiant_win']),
+            'radiant_total': int(row['radiant_total']),
+            'dire_win': int(row['dire_win']),
+            'dire_total': int(row['dire_total']),
+        }
+        mongo_db.hero_win_rate.replace_one({"_id": doc_id}, doc, upsert=True)
 
 
 def get_current_win_rate_table(days):
     """Sets a summary table for current win rates, spanning `days` worth of
     time"""
-
-    engine, _ = db_util.connect_database()
-    end = int(db_util.get_max_start_time())
-    begin = int(end - days * 24 * 3600)
-
-    stmt = "SELECT * FROM dota_hero_win_rate WHERE time>={0} AND time<={1};".\
-        format(begin, end)
-    summary = pd.read_sql(stmt, engine)
+    mongo_db = db_util.connect_mongo()
+    summary = pd.DataFrame(mongo_db.hero_win_rate.find())
 
     # Columns to re-arrange into... used later for now construct blank
     # dataframe if needed
@@ -132,10 +120,13 @@ def get_current_win_rate_table(days):
 
     # Actual hero names & legacy label field
     grpd['hero'] = [meta.HERO_DICT[a] for a in grpd['hero']]
-    grpd['hero_skill'] = [a.upper()+"_"+str(b) for a, b in
+    grpd['hero_skill'] = [a.upper() + "_" + str(b) for a, b in
                           zip(grpd['hero'], grpd['skill'])]
 
     # Time string
+    end = int(db_util.get_max_start_time())
+    begin = int(end - days * 24 * 3600)
+
     sbegin = dt.datetime.utcfromtimestamp(begin).isoformat()
     send = dt.datetime.utcfromtimestamp(end).isoformat()
     grpd['time_range'] = "{0} to {1}".format(sbegin, send)
@@ -158,26 +149,26 @@ def get_current_win_rate_table(days):
 def main(days, skill):
     """Main entry point"""
 
+    mongo_db = db_util.connect_mongo()
     text, begin, end = dotautil.TimeMethods.get_hour_blocks(
         db_util.get_max_start_time(),
-        int(days*24)
+        int(days * 24)
     )
 
-    # Get database connection
-    engine, _ = db_util.connect_database()
+    for ttime, btime, etime in zip(text, begin, end):
+        qbegin = time.time()
 
-    with engine.connect() as conn:
-        for ttime, btime, etime in zip(text, begin, end):
-            stmt = "select radiant_win, radiant_heroes, dire_heroes from " \
-                   "dota_matches where start_time>={0} and start_time<={1}"\
-                   " and api_skill={2};".format(btime, etime, skill)
-            matches = conn.execute(stmt)
+        key_begin = db_util.get_key(skill, btime, 0)
+        key_end = db_util.get_key(skill, etime, 0)
 
-            log.info("Skill level: %d Time: %s Count: %d", skill, ttime,
-                     matches.rowcount)
+        query = {'_id': {'$gte': key_begin, '$lte': key_end}}
+        matches = mongo_db.matches.find(query)
+        df_hero, count = parse_records(matches)
+        write_to_database(mongo_db, df_hero, skill, etime)
 
-            df_hero = parse_records(matches)
-            write_to_database(df_hero, skill, etime)
+        qend = time.time()
+        log.info("Skill level: %d Match Time: %s Count: %7d Processing: %f",
+                 skill, ttime, count, qend - qbegin)
 
 
 if __name__ == "__main__":

@@ -91,6 +91,16 @@ def connect_database():
     return engine, session
 
 
+def connect_mongo():
+    """Connect to MongoDB"""
+    mongo = MongoClient(os.environ['DOTA_MONGO_URI'])
+    return mongo[os.environ['DOTA_MONGO_DB']]
+
+
+def get_key(skill, time, match):
+    """Generate MongdoDB _id for skill/time/match trio"""
+    return "{0:1d}_{1:010d}_{2:012d}".format(skill, time, match)
+
 def get_max_start_time():
     """Return the most recent start time"""
 
@@ -140,6 +150,7 @@ def create_database():
     engine, _ = connect_database()
     with engine.connect() as conn:
         for table in engine.table_names():
+            log.info("DROP TABLE {};".format(table))
             conn.execute("DROP TABLE {};".format(table))
 
         # dota_matches
@@ -167,6 +178,7 @@ def create_database():
                "dire_win INT, dire_total INT, dire_win_pct FLOAT, win INT, " \
                "total INT, win_pct FLOAT) ENGINE='MyISAM'; "
         conn.execute(stmt)
+    log.info("Don't forget to run `alembic upgrade head`")
 
     # Repeat for mongo DB
     mongo = MongoClient(os.environ['DOTA_MONGO_URI'])
