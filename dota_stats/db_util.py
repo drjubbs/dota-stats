@@ -7,11 +7,7 @@ import argparse
 import logging
 import sys
 from datetime import datetime as dt
-from sqlalchemy import create_engine, Column, CHAR, VARCHAR, BigInteger, \
-    Integer, String
-from sqlalchemy.dialects.mysql import TINYINT
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+import datetime
 from pymongo import MongoClient
 
 
@@ -49,10 +45,16 @@ def get_max_start_time():
     return last['start_time']
 
 
-def purge_database(days):
-    """Purge all records older than `days` relative to current time."""
+def purge_database(days, utc=True):
+    """Purge all records older than `days` relative to current time. If
+    `utc` is get to false it will use most recent entry in database.
+    """
 
-    now = dt.utcnow().timestamp()
+    if utc is True:
+        now = dt.utcnow().timestamp()
+    else:
+        now = get_max_start_time()
+
     cutoff = int(now - (days*24*60*60))
 
     mongo_db = connect_mongo()

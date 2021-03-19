@@ -34,7 +34,7 @@ class TestDumpBug(unittest.TestCase):
             self.assertTrue(match is not None)
 
 
-class TestDB(unittest.TestCase):
+class TestDBUtil(unittest.TestCase):
     """Parent class for testing functionality which requries database
     connectivity."""
 
@@ -57,32 +57,101 @@ class TestDB(unittest.TestCase):
             db_txt = json.loads(filehandle.read())
 
         cls.mongo_db.matches.insert_many(db_txt)
+        win_rate_pick_rate.main(1, 3)
 
     def test_load(self):
         """Check that the database loaded the number of records in the
         JSON test database."""
         self.assertEqual(self.mongo_db.matches.count_documents({}), 4)
 
+    def test_get_max_start_time(self):
+        """Find the most recent match in the database"""
+        max_time = db_util.get_max_start_time()
+        self.assertTrue(max_time, 1615990847)
+
+    def test_purge_database(self):
+        """Clear out the database"""
+
+        # No matches on a 10 day window relative to max time
+        rec_matches, rec_winrate = db_util.purge_database(10, utc=False)
+        self.assertEqual(rec_matches, 0)
+
+        # Four matches on a zero day window
+        rec_matches, rec_winrate = db_util.purge_database(-1, utc=False)
+        self.assertEqual(rec_matches, 4)
+        self.assertTrue(rec_winrate, meta.NUM_HEROES * 24)
+
     def tearDown(self):
         pass
 
 
-class TestFetchSummary(unittest.TestCase):
-    """Testing of methods related to fetch statistics"""
+class TestWinRatePickRate(TestDBUtil):
+    """Test code to calculate win rate vs. pick rate tables"""
 
-    def test_get_health_summary(self):
-        """Check service health"""
+    def test_win_rate_pick_rate(self):
+        """Test code to calculate win rate vs. pick rate tables"""
 
-        df1, _ = fetch_summary.get_health_summary(
-            30, 'US/Eastern', hour=False)
-        df2, _ = fetch_summary.get_health_summary(
-            3, 'US/Eastern', hour=True)
+        win_rate_pick_rate.main(days=1, skill=3)
+        df_out = win_rate_pick_rate.get_current_win_rate_table(1)
 
-        mask = (df1.sum() >= df2.sum())
-        self.assertTrue(mask.all())
+        # Integrity checks
+        summary = df_out.sum()
+        self.assertEqual(
+            summary['radiant_win'] + summary['dire_win'],
+            4 * 5)
+        self.assertEqual(summary['radiant_total'], summary['dire_total'])
+        self.assertEqual(
+            4 * 5 + 4 * 5,
+            sum(df_out[['radiant_total', 'dire_total']].sum(axis=1)))
+
+        # Individual heroes
+        self.assertEqual(
+            df_out[df_out['hero'] == 'anti-mage']['radiant_win'].values[0],
+            3
+        )
+
+        self.assertEqual(
+            df_out[df_out['hero'] == 'anti-mage']['dire_win'].values[0],
+            0
+        )
+
+        self.assertEqual(
+            df_out[df_out['hero'] == 'shadow-fiend']['radiant_win'].values[0],
+            2
+        )
+
+        self.assertEqual(
+            df_out[df_out['hero'] == 'silencer']['radiant_win'].values[0],
+            1
+        )
 
 
-class TestFetch(TestDB):
+class TestDotaUtil(unittest.TestCase):
+    """Test utility functions in DotaUtil"""
+
+    def test_get_hour_blocks(self):
+        """Given `timestamp`, return list of begin and end times on the near
+        hour going back `hours` from the timestamp."""
+        text, begin, end = dotautil.TimeMethods.get_hour_blocks(1609251250, 11)
+
+        self.assertEqual(begin[0], 1609250400)
+        self.assertEqual(end[0], 1609254000)
+
+        self.assertEqual(text[0], "20201229_1400")
+        self.assertEqual(text[-1], "20201229_0400")
+
+
+    def test_get_time_nearest(self):
+        """Check rounding of timestamps"""
+
+        hour = dotautil.TimeMethods.get_time_nearest(1609251250)
+        day = dotautil.TimeMethods.get_time_nearest(1609251250, False)
+
+        self.assertEqual(hour[0], 1609250400)
+        self.assertEqual(day[0], 1609200000)
+
+
+class TestFetch(TestDBUtil):
     """Test routines in the main fetch.py logic"""
 
     def test_bad_api_key(self):
@@ -178,229 +247,22 @@ class TestFetch(TestDB):
                          match['dire_heroes'])
 
 
-class TestDBUtil(unittest.TestCase):
-    """Test utility functions in DBUtil"""
+class TestFetchSummary(unittest.TestCase):
+    """Testing of methods related to fetch statistics"""
 
-    def test_get_hour_blocks(self):
-        """Given `timestamp`, return list of begin and end times on the near
-        hour going back `hours` from the timestamp."""
-        text, begin, end = dotautil.TimeMethods.get_hour_blocks(1609251250, 11)
+    def test_get_health_summary(self):
+        """Check service health"""
 
-        self.assertEqual(text[0], "20201229_1400")
-        self.assertEqual(text[-1], "20201229_0400")
-        self.assertEqual(end[0], 1609250400)
-        self.assertEqual(begin[-1], 1609210800)
+        df1, _ = fetch_summary.get_health_summary(
+            30, 'US/Eastern', hour=False)
+        df2, _ = fetch_summary.get_health_summary(
+            3, 'US/Eastern', hour=True)
 
-
-class TestWinRatePickRate(TestDB):
-    """Test code to calculate win rate vs. pick rate tables"""
-
-    def test_win_rate_pick_rate(self):
-        """Test code to calculate win rate vs. pick rate tables"""
-
-        win_rate_pick_rate.main(days=1, skill=3)
-        df_out = win_rate_pick_rate.get_current_win_rate_table(1)
-
-        # Integrity checks
-        summary = df_out.sum()
-        self.assertEqual(
-            summary['radiant_win'] + summary['dire_win'],
-            4 * 5)
-        self.assertEqual(summary['radiant_total'], summary['dire_total'])
-        self.assertEqual(
-            4 * 5 + 4 * 5,
-            sum(df_out[['radiant_total', 'dire_total']].sum(axis=1)))
-
-        # Individual heroes
-        self.assertEqual(
-            df_out[df_out['hero'] == 'anti-mage']['radiant_win'].values[0],
-            3
-        )
-
-        self.assertEqual(
-            df_out[df_out['hero'] == 'anti-mage']['dire_win'].values[0],
-            0
-        )
-
-        self.assertEqual(
-            df_out[df_out['hero'] == 'shadow-fiend']['radiant_win'].values[0],
-            2
-        )
-
-        self.assertEqual(
-            df_out[df_out['hero'] == 'silencer']['radiant_win'].values[0],
-            1
-        )
+        mask = (df1.sum() >= df2.sum())
+        self.assertTrue(mask.all())
 
 
-class TestMLEncoding(unittest.TestCase):
-    """Test one-hot encoding for machine learning"""
-
-    def setUp(self):
-        test_heroes = [
-            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-            [10, 9, 8, 7, 6, 5, 4, 3, 2, 1],
-            [57, 55, 58, 81, 27, 92, 63, 14, 89, 26],
-            [84, 89, 43, 121, 57, 71, 63, 110, 34, 35],
-            [121, 37, 93, 1, 12, 77, 92, 72, 98, 33],
-            [96, 108, 73, 28, 58, 101, 52, 3, 94, 129],
-            [121, 58, 51, 17, 81, 18, 67, 72, 68, 77],
-            [120, 47, 34, 112, 19, 1, 90, 63, 9, 43],
-            [58, 17, 52, 84, 7, 74, 3, 9, 16, 57],
-            [69, 55, 89, 8, 46, 91, 53, 109, 85, 14]
-        ]
-        num_heroes = meta.NUM_HEROES
-
-        rad_heroes = [t[0:5] for t in test_heroes]
-        dire_heroes = [t[5:] for t in test_heroes]
-
-        # First order matrix... this routine is vectorized over matches
-        self.x1_test = dotautil.MLEncoding.first_order_vector(
-            rad_heroes, dire_heroes)
-
-        # Second order matrix is upper triangular, without the diagonal,
-        # rolled out. This is whether or not a team/enemy hero pair exists
-        self.x2_test = np.zeros([len(test_heroes), int(num_heroes * (
-                num_heroes - 1) / 2)], dtype='b')
-
-        # Loop over all 'fake matches' and flatten first and second order
-        # matrices
-        counter = 0
-        for heroes in test_heroes:
-            x2_mat = dotautil.MLEncoding.second_order_hmatrix(
-                heroes[0:5], heroes[5:])
-            self.x2_test[counter, :] = \
-                dotautil.MLEncoding.flatten_second_order_upper(
-                    x2_mat)
-            counter = counter + 1
-
-    def test_first_order_vector(self):
-        """Test the first oder mapping """
-
-        # Rows for first order encoding should sum to zero since
-        # 1 and -1 are used for randiant/dire
-        row_sum = np.array(self.x1_test.sum(axis=1))
-        row_zero = np.zeros([len(row_sum), 1])
-        self.assertTrue(np.all(row_sum == row_zero))
-
-        # First half should sum to 5
-        sum_radiant = self.x1_test[:, 0:meta.NUM_HEROES].sum(axis=1)
-        sum_check = np.ones([len(sum_radiant), 1]) * 5
-        self.assertTrue(np.all(sum_radiant == sum_check))
-
-        # First half should sum to -5
-        sum_dire = self.x1_test[:, meta.NUM_HEROES:2 * meta.NUM_HEROES].sum(
-            axis=1)
-        sum_check = -1 * sum_check
-        self.assertTrue(np.all(sum_dire == sum_check))
-
-    def test_flatten_unflatten_second_order_upper(self):
-        """Test the code which `unravels` a matrix into the upper
-        triangular format without the diagonal.
-        """
-        simple = np.array([[0, 1, 2, 3, 4],
-                           [0, 0, 5, 6, 7],
-                           [0, 0, 0, 8, 9],
-                           [0, 0, 0, 0, 10],
-                           [0, 0, 0, 0, 0]])
-        flat_a = dotautil.MLEncoding.flatten_second_order_upper(simple)
-        flat_b = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-        self.assertTrue(np.all(flat_a == flat_b))
-
-        # When we unflatten, the upper triangle will be mirrored
-        # and reflected over the diagonal which is still zero
-        simple2_a = np.array([[0, 1, 2, 3, 4],
-                              [-1, 0, 5, 6, 7],
-                              [-2, -5, 0, 8, 9],
-                              [-3, -6, -8, 0, 10],
-                              [-4, -7, -9, -10, 0]
-                              ])
-        simple2_b = dotautil.MLEncoding.unflatten_second_order_upper(flat_a)
-        self.assertTrue(np.all(simple2_a == simple2_b))
-
-    def test_second_order_hmatrix(self):
-        """Some basic integrity checks on x2. All columns should be between
-        [-25,25] the first two rows are constructed to be 25 and -25
-        respectively. The sign convention depends on whether or not the first
-        hero in the pair (radiant-dire) falls below or above the diagonal.
-
-        Each row is a match.
-        """
-
-        row_sum = self.x2_test.sum(axis=1)
-        # Upper limit
-        upper = (np.ones(self.x2_test.shape[0]) * 25).reshape(
-            self.x2_test.shape[0], 1)
-        # Lower limit
-        lower = (np.ones(self.x2_test.shape[0]) * -25).reshape(
-            self.x2_test.shape[0], 1)
-
-        self.assertEqual(row_sum[0], 25)
-        self.assertEqual(row_sum[1], -25)
-        self.assertTrue(np.all(row_sum <= upper))
-        self.assertTrue(np.all(row_sum >= lower))
-
-    def test_create_features(self):
-        """Check of the higher level one-hot encoding function"""
-
-        # Sample data
-        rad = [[1, 22, 110, 33, 14],
-               [71, 7, 1, 86, 59],
-               [39, 107, 13, 98, 20],
-               [119, 74, 1, 29, 128],
-               [53, 128, 1, 50, 2]]
-
-        dire = [[35, 128, 31, 60, 111],
-                [10, 2, 70, 31, 83],
-                [1, 35, 67, 42, 68],
-                [84, 126, 64, 120, 54],
-                [87, 76, 93, 29, 100]]
-
-        wins = [1, 0, 1, 0, 1]
-
-        _, _, _, x3_data = dotautil.MLEncoding.create_features(
-            rad, dire, wins, verbose=False)
-
-        # Convert to hero index from hero number
-        rad_idx = []
-        for row in rad:
-            rad_idx.append([meta.HEROES.index(t) for t in row])
-
-        dire_idx = []
-        for row in dire:
-            dire_idx.append([meta.HEROES.index(t) for t in row])
-
-        # Look at 4th match, 2nd dire hero
-        fourth = x3_data[3, :]
-        idx_hero2_dire = dire_idx[3][1]
-
-        # Should be zero for radiant "first order" and -1 for dire...
-        self.assertEqual(fourth[idx_hero2_dire], 0)
-        self.assertEqual(fourth[idx_hero2_dire + meta.NUM_HEROES], -1)
-
-        # Now check 2nd order encoding for same match
-        upper = dotautil.MLEncoding.unflatten_second_order_upper(
-            fourth[2 * meta.NUM_HEROES:], mirror=False)
-
-        # hero: [116, 116, 116, 116, 116]
-        # other team: [113, 72, 0, 27, 117]
-        hero_idx = 5 * [idx_hero2_dire]
-        enemy_idx = rad_idx[3]
-
-        # Only the last entry should hold -1
-        self.assertTrue(all(np.isclose(
-            upper[(hero_idx, enemy_idx)],
-            np.array([0., 0., 0., 0., -1.])
-        )))
-
-        # Flipping around everything but the last should be populated
-        self.assertTrue(all(np.isclose(
-            upper[(enemy_idx, hero_idx)],
-            np.array([1., 1., 1., 1., 0.])
-        )))
-
-
-class TestWinRatePosition(TestDB):
+class TestWinRatePosition(TestDBUtil):
     """Test cases for winrate by position probability model"""
 
     def test_winrate_position(self):
