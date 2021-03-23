@@ -4,9 +4,8 @@ import unittest
 import logging
 import os
 import json
-import numpy as np
-import pandas as pd
 import fetch
+import fetch_summary
 from dota_stats import meta, db_util, win_rate_pick_rate, dotautil, \
     win_rate_position
 
@@ -34,7 +33,7 @@ class TestDumpBug(unittest.TestCase):
             self.assertTrue(match is not None)
 
 
-class TestDBUtil(unittest.TestCase):
+class TestDB(unittest.TestCase):
     """Parent class for testing functionality which requries database
     connectivity."""
 
@@ -59,6 +58,13 @@ class TestDBUtil(unittest.TestCase):
         cls.mongo_db.matches.insert_many(db_txt)
         win_rate_pick_rate.main(1, 3)
 
+    def tearDown(self):
+        pass
+
+
+class TestDBUtil(TestDB):
+    """Check basic database functions in `db_util.py`"""
+
     def test_load(self):
         """Check that the database loaded the number of records in the
         JSON test database."""
@@ -73,25 +79,24 @@ class TestDBUtil(unittest.TestCase):
         """Clear out the database"""
 
         # No matches on a 10 day window relative to max time
-        rec_matches, rec_winrate = db_util.purge_database(10, utc=False)
+        rec_matches, rec_winrate = db_util.purge_database(
+            10, use_current_time=False)
         self.assertEqual(rec_matches, 0)
 
         # Four matches on a zero day window
-        rec_matches, rec_winrate = db_util.purge_database(-1, utc=False)
+        rec_matches, rec_winrate = db_util.purge_database(
+            -1, use_current_time=False)
         self.assertEqual(rec_matches, 4)
         self.assertTrue(rec_winrate, meta.NUM_HEROES * 24)
 
-    def tearDown(self):
-        pass
 
-
-class TestWinRatePickRate(TestDBUtil):
+class TestWinRatePickRate(TestDB):
     """Test code to calculate win rate vs. pick rate tables"""
 
     def test_win_rate_pick_rate(self):
         """Test code to calculate win rate vs. pick rate tables"""
 
-        win_rate_pick_rate.main(days=1, skill=3)
+        win_rate_pick_rate.main(days=2, skill=3)
         df_out = win_rate_pick_rate.get_current_win_rate_table(1)
 
         # Integrity checks
@@ -140,7 +145,6 @@ class TestDotaUtil(unittest.TestCase):
         self.assertEqual(text[0], "20201229_1400")
         self.assertEqual(text[-1], "20201229_0400")
 
-
     def test_get_time_nearest(self):
         """Check rounding of timestamps"""
 
@@ -151,7 +155,7 @@ class TestDotaUtil(unittest.TestCase):
         self.assertEqual(day[0], 1609200000)
 
 
-class TestFetch(TestDBUtil):
+class TestFetch(TestDB):
     """Test routines in the main fetch.py logic"""
 
     def test_bad_api_key(self):
@@ -216,18 +220,7 @@ class TestFetch(TestDBUtil):
 
         self.assertTrue(context.exception.__str__() == 'Null Hero ID')
 
-    def test_dummy_matches(self):
-        """Test dummy matches"""
-
-        rows = self.session.query(db_util.Match).all()
-        radiant = [json.loads(t.radiant_heroes) for t in rows]
-        dire = [json.loads(t.dire_heroes) for t in rows]
-
-        # There should be an anti-mage in each game
-        antimage = sum([1 in t for t in radiant]) + sum([1 in t for t in dire])
-        self.assertEqual(antimage, 6)
-
-    def test_orm_writes(self):
+    def test_write_matches(self):
         """ Write some matches and test using ORM """
 
         with open("./testing/write_match.json") as filename:
@@ -235,73 +228,112 @@ class TestFetch(TestDBUtil):
 
         match = fetch.parse_match(match)
         match_id = match['match_id']
-        fetch.write_matches(self.session, [match])
 
-        match_read = self.session.query(db_util.Match). \
-            filter(db_util.Match.match_id == match_id).first()
+        fetch.write_matches(self.mongo_db, [match])
 
-        self.assertEqual(match_read.match_id, match['match_id'])
-        self.assertEqual(json.loads(match_read.radiant_heroes),
-                         match['radiant_heroes'])
-        self.assertEqual(json.loads(match_read.dire_heroes),
-                         match['dire_heroes'])
+        match_read = self.mongo_db.matches.find(
+            {"match_id": {"$eq": match_id}})[0]
+
+        self.assertEqual(match_read['match_id'], match['match_id'])
+        self.assertEqual(match_read['radiant_heroes'], match['radiant_heroes'])
+        self.assertEqual(match_read['dire_heroes'], match['dire_heroes'])
 
 
-class TestFetchSummary(unittest.TestCase):
+class TestFetchSummary(TestDB):
     """Testing of methods related to fetch statistics"""
+
+    def test_main(self):
+        """Create the database table and check record count"""
+        fetch_summary.main(10, use_current_time=False)
+        mongo_db = db_util.connect_mongo()
+
+        self.assertTrue(
+            mongo_db.fetch_summary.find()[0]['match_ids'],
+            4
+        )
+
+        self.assertTrue(
+            mongo_db.fetch_summary.find()[0]['_id'],
+            1615730400
+        )
 
     def test_get_health_summary(self):
         """Check service health"""
 
-        df1, _ = fetch_summary.get_health_summary(
-            30, 'US/Eastern', hour=False)
-        df2, _ = fetch_summary.get_health_summary(
-            3, 'US/Eastern', hour=True)
+        df1, rows1 = fetch_summary.get_health_summary(
+            3, 'UTC', hour=True, use_current_time=False)
 
-        mask = (df1.sum() >= df2.sum())
-        self.assertTrue(mask.all())
+        # Most recent hour in database should have two entries, one in the
+        # trailing hour, then 1 entry about a day earlier
+        self.assertEqual(df1.iloc[0]['very_high'], 2)
+        self.assertEqual(df1.iloc[1]['very_high'], 1)
+        self.assertEqual(df1.loc['2021-03-13T10:00:00+00:00']['very_high'], 1)
+        self.assertEqual(df1.loc['2021-03-13T11:00:00+00:00']['very_high'], 0)
+        self.assertEqual(len(df1), 3 * 24)
+
+        # Quick check on the row iterable
+        row1 = None
+        for row1 in rows1:
+            break
+        self.assertEqual(row1[-1], 2)
+
+        # Daily summary
+        df2, rows2 = fetch_summary.get_health_summary(
+            5, 'UTC', hour=False, use_current_time=False)
+
+        self.assertEqual(df2.loc['2021-03-14T00:00:00+00:00']['very_high'],
+                         3.0)
+        self.assertEqual(df2.loc['2021-03-13T00:00:00+00:00']['very_high'],
+                         1.0)
+        self.assertEqual(len(df2), 5)
+
+        # Quick check on the row iterable
+        row2 = None
+        for row2 in rows2:
+            break
+        self.assertEqual(row2[-1], 3)
 
 
-class TestWinRatePosition(TestDBUtil):
-    """Test cases for winrate by position probability model"""
-
-    def test_winrate_position(self):
-        """Test assignment of heroes to positions and winrates"""
-
-        rows = []
-        for match in self.session.query(db_util.Match).all():
-            rows.append((
-                match.match_id,
-                match.radiant_heroes,
-                match.dire_heroes,
-                match.radiant_win
-            ))
-
-        hml = win_rate_position.HeroMaxLikelihood(
-            os.path.join("analytics", "prior_final.json"))
-        total_win_mat, total_count_mat = hml.matches_to_summary(rows)
-
-        # 6 matches * 5 heroes, 1 winning each game = 30 wins, 60 total
-        self.assertEqual(np.sum(total_win_mat), 30.0)
-        self.assertEqual(np.sum(total_count_mat), 60.0)
-
-        # Drow in three matches, 3 wins
-        drow_id = meta.REVERSE_HERO_DICT['drow-ranger']
-        drow_idx = meta.HEROES.index(drow_id)
-
-        self.assertEqual(total_win_mat[drow_idx, :].sum(), 3)
-        self.assertEqual(total_count_mat[drow_idx, :].sum(), 3)
-
-        # Anti-mage in all, 2 wins
-        am_id = meta.REVERSE_HERO_DICT['anti-mage']
-        am_idx = meta.HEROES.index(am_id)
-
-        self.assertEqual(total_win_mat[am_idx, :].sum(), 2)
-        self.assertEqual(total_count_mat[am_idx, :].sum(), 6)
-
-        # dazzle, mirana, mars, zeus, phantom-assassin
-        max_h, _ = hml.find_max_likelihood([50, 9, 129, 22, 44])
-        self.assertEqual(max_h, [44, 22, 129, 9, 50])
+# class TestWinRatePosition(TestDBUtil):
+#     """Test cases for winrate by position probability model"""
+#
+#     def test_winrate_position(self):
+#         """Test assignment of heroes to positions and winrates"""
+#
+#         rows = []
+#         for match in self.session.query(db_util.Match).all():
+#             rows.append((
+#                 match.match_id,
+#                 match.radiant_heroes,
+#                 match.dire_heroes,
+#                 match.radiant_win
+#             ))
+#
+#         hml = win_rate_position.HeroMaxLikelihood(
+#             os.path.join("analytics", "prior_final.json"))
+#         total_win_mat, total_count_mat = hml.matches_to_summary(rows)
+#
+#         # 6 matches * 5 heroes, 1 winning each game = 30 wins, 60 total
+#         self.assertEqual(np.sum(total_win_mat), 30.0)
+#         self.assertEqual(np.sum(total_count_mat), 60.0)
+#
+#         # Drow in three matches, 3 wins
+#         drow_id = meta.REVERSE_HERO_DICT['drow-ranger']
+#         drow_idx = meta.HEROES.index(drow_id)
+#
+#         self.assertEqual(total_win_mat[drow_idx, :].sum(), 3)
+#         self.assertEqual(total_count_mat[drow_idx, :].sum(), 3)
+#
+#         # Anti-mage in all, 2 wins
+#         am_id = meta.REVERSE_HERO_DICT['anti-mage']
+#         am_idx = meta.HEROES.index(am_id)
+#
+#         self.assertEqual(total_win_mat[am_idx, :].sum(), 2)
+#         self.assertEqual(total_count_mat[am_idx, :].sum(), 6)
+#
+#         # dazzle, mirana, mars, zeus, phantom-assassin
+#         max_h, _ = hml.find_max_likelihood([50, 9, 129, 22, 44])
+#         self.assertEqual(max_h, [44, 22, 129, 9, 50])
 
 
 if __name__ == '__main__':

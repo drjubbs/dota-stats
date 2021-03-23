@@ -25,6 +25,7 @@ ch.setFormatter(fmt)
 log.addHandler(ch)
 
 
+
 def connect_mongo():
     """Connect to MongoDB"""
     mongo = MongoClient(os.environ['DOTA_MONGO_URI'])
@@ -45,12 +46,12 @@ def get_max_start_time():
     return last['start_time']
 
 
-def purge_database(days, utc=True):
+def purge_database(days, use_current_time=True):
     """Purge all records older than `days` relative to current time. If
     `utc` is get to false it will use most recent entry in database.
     """
 
-    if utc is True:
+    if use_current_time is True:
         now = dt.utcnow().timestamp()
     else:
         now = get_max_start_time()

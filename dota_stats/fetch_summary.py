@@ -9,8 +9,9 @@ import argparse
 import datetime as dt
 import pandas as pd
 import pytz
-from dota_stats.db_util import FetchSummary, connect_database
+from dota_stats.db_util import connect_mongo, get_max_start_time
 from dota_stats import dotautil
+
 
 
 def isoformat_with_tz(time_obj, utc_hour):
@@ -21,32 +22,37 @@ def isoformat_with_tz(time_obj, utc_hour):
     return txt
 
 
-def get_health_summary(days, timezone, hour=True):
+def get_health_summary(days, timezone, hour=True, use_current_time=True):
     """Returns a Pandas dataframe summarizing number of matches processed
     over an interval of days. Defaults to by hour, can we chaned to daily
     view through use of optional `hour` argument`.
     """
 
     # Database connection
-    engine, _ = connect_database()
+    mongo_db = connect_mongo()
 
     # Get TZ offsets, do everything relative to current TZ offset
     local_tz = pytz.timezone(timezone)
     utc_offset = local_tz.utcoffset(dt.datetime.now())
     utc_hour = int(utc_offset.total_seconds() / 3600)
 
-    now = dt.datetime.utcnow()
+    if use_current_time:
+        now = dt.datetime.utcnow()
+    else:
+        now = dt.datetime.fromtimestamp(get_max_start_time())
+
     now = now + utc_offset
 
     # Create a blank dataframe for the time range of interest, starting with
     # times.
     if hour:
-        now_hour = dt.datetime(now.year, now.month, now.day, now.hour, 0, 0)
-        times = [isoformat_with_tz(now_hour - dt.timedelta(hours=i), utc_hour)
+        now_rnd = dt.datetime(now.year, now.month, now.day, now.hour, 0, 0)
+        times = [isoformat_with_tz(now_rnd - dt.timedelta(hours=i), utc_hour)
                  for i in range(24 * days)]
+
     else:
-        now_day = dt.datetime(now.year, now.month, now.day, 0, 0, 0)
-        times = [isoformat_with_tz(now_day - dt.timedelta(days=i), utc_hour)
+        now_rnd = dt.datetime(now.year, now.month, now.day, 0, 0, 0)
+        times = [isoformat_with_tz(now_rnd - dt.timedelta(days=i), utc_hour)
                  for i in range(days)]
 
     # Blank dataframe, one entry for each skill level...
@@ -56,27 +62,30 @@ def get_health_summary(days, timezone, hour=True):
         3: [0] * len(times),
     })
 
-    # Fetch from database
-    begin = int((dt.datetime.utcnow() - dt.timedelta(days=days)).timestamp())
-    begin = str(begin) + "_0"
-    stmt = "select date_hour_skill, rec_count from dota_fetch_summary "
-    stmt += "where date_hour_skill>='{}'"
-    rows = pd.read_sql_query(stmt.format(begin), engine)
+    # Fetch from database, convert to DataFrame
+    begin = int((now_rnd - dt.timedelta(days=days)).timestamp())
+    query = {"start_time": {"$gte": begin}}
+    projection = {"start_time": 1, "api_skill": 1}
+
+    matches = mongo_db.matches.find(query, projection)
+    rows = pd.DataFrame(matches)
+
+    # Trim columns and renamed
+    rows = rows[['start_time', 'api_skill']]
+    rows = rows.rename(columns={
+        'start_time': 'time',
+        'api_skill': 'skill'
+    })
 
     if len(rows) == 0:
         df_summary = df_blank
     else:
-        # Split out time and skills
-        rows['time'] = [(int(t.split("_")[0]))
-                        for t in rows['date_hour_skill']]
-        rows['skill'] = [(int(t.split("_")[1]))
-                         for t in rows['date_hour_skill']]
-
         # Apply UTC offset
         rows['time_local'] = rows['time'] + utc_hour*3600
         rows['time_local_rnd'] = [
             dotautil.TimeMethods.get_time_nearest(t, hour=hour)[0]
             for t in rows['time_local']]
+        rows['rec_count'] = 1
 
         df_summary = rows[["time_local_rnd", "skill", "rec_count"]]
         df_summary = df_summary.groupby(["time_local_rnd", "skill"]).sum()
@@ -105,36 +114,38 @@ def get_health_summary(days, timezone, hour=True):
     return df_summary, rows
 
 
-def fetch_rows(horizon_days, engine):
+def fetch_rows(mongo_db, horizon_days, use_current_time):
     """Get the match_ids, skill level, and start times from the database
     within `horizon_days` of current time.
+
+    If use_current_time is True (default), get time slices relative to current
+    time, otherwise, use the max time found in the database
     """
 
     # Get UTC timestamps spanning horizon_days ago to today
-    start_time = int((dt.datetime.utcnow()-dt.timedelta(
+    if use_current_time:
+        now = dt.datetime.utcnow()
+    else:
+        now = dt.datetime.fromtimestamp(get_max_start_time())
+
+    start_time = int((now-dt.timedelta(
         days=horizon_days)).timestamp())
-    end_time = int(dt.datetime.utcnow().timestamp())
+    end_time = int(now.timestamp())
 
-    with engine.connect() as conn:
-        stmt = "select start_time, match_id, api_skill from dota_matches " \
-               "where start_time>={} and start_time<={};".format(start_time,
-                                                                 end_time)
-        rows = conn.execute(stmt)
+    query = {"start_time": {"$gte": start_time, "$lte": end_time}}
+    count = mongo_db.matches.count_documents(query)
+    rows = mongo_db.matches.find(query)
 
-    return rows
+    return rows, count
 
 
-def main():
+def main(days, use_current_time=True):
     """Main program execution"""
 
-    parser = argparse.ArgumentParser(description='Update table containing '
-                                                 'record count by hour.')
-    parser.add_argument("horizon_days", type=int)
-    opts = parser.parse_args()
+    mongo_db = connect_mongo()
+    rows, count = fetch_rows(mongo_db, days, use_current_time)
 
-    engine, session = connect_database()
-    rows = fetch_rows(opts.horizon_days, engine)
-    print("Records: {}".format(rows.rowcount))
+    print("Records: {}".format(count))
 
     times = []
     match_ids = []
@@ -142,12 +153,12 @@ def main():
     for row in rows:
         # Round off timestamps to the nearest hour, create data frame and
         # aggregate on counts.
-        round_time = dt.datetime.fromtimestamp(row.start_time).strftime(
+        round_time = dt.datetime.fromtimestamp(row['start_time']).strftime(
             "%Y-%m-%dT%H:00")
         times.append(int(dt.datetime.strptime(round_time,
                                               "%Y-%m-%dT%H:%M").timestamp()))
-        match_ids.append(row.match_id)
-        skills.append(row.api_skill)
+        match_ids.append(row['match_id'])
+        skills.append(row['api_skill'])
 
     df_matches = pd.DataFrame({'date_hour': times, 'skill': skills,
                               'match_ids': match_ids})
@@ -157,13 +168,21 @@ def main():
     # Write to database, overwriting old records
     for _, row in summary.iterrows():
 
-        fetch = FetchSummary()
-        fetch.date_hour_skill = "{0:10d}_{1}".format(row['date_hour'],
-                                                     row['skill'])
-        fetch.rec_count = row['match_ids']
-        session.merge(fetch)
-    session.commit()
+        doc = {
+            "_id": int(row['date_hour']),
+            "skill": int(row['skill']),
+            "match_ids": int(row['match_ids']),
+        }
+        mongo_db.fetch_summary.replace_one(
+            {"_id": doc['_id']}, doc, upsert=True)
 
 
 if __name__ == "__main__":
-    main()
+    """Main program execution"""
+
+    parser = argparse.ArgumentParser(description='Update table containing '
+                                                 'record count by hour.')
+    parser.add_argument("horizon_days", type=int)
+    opts = parser.parse_args()
+
+    main(opts.horizon_days)
