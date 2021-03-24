@@ -6,12 +6,28 @@ HORIZON_DAYS controls how far back in history is reprocessed each time
 the script runs.
 """
 import argparse
+import os
+import sys
+import logging
 import datetime as dt
 import pandas as pd
 import pytz
 from dota_stats.db_util import connect_mongo, get_max_start_time
 from dota_stats import dotautil
 
+
+# Logging
+log = logging.getLogger("fetch_summary")
+if int(os.environ['DOTA_LOGGING']) == 0:
+    log.setLevel(logging.INFO)
+else:
+    log.setLevel(logging.DEBUG)
+ch = logging.StreamHandler(sys.stdout)
+fmt = logging.Formatter(
+        fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt="%Y-%m-%dT%H:%M:%S %Z")
+ch.setFormatter(fmt)
+log.addHandler(ch)
 
 
 def isoformat_with_tz(time_obj, utc_hour):
@@ -145,7 +161,7 @@ def main(days, use_current_time=True):
     mongo_db = connect_mongo()
     rows, count = fetch_rows(mongo_db, days, use_current_time)
 
-    print("Records: {}".format(count))
+    log.info("Records: %d" % count)
 
     times = []
     match_ids = []

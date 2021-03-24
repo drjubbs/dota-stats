@@ -66,58 +66,7 @@ Python 3.7.3 (default, Jul 25 2020, 13:03:44)
 
 
 
-## MariaDB/MySQL
-
-Proceed to follow instructions to setup MariaDB on your platform.   You may need to allow remote access if your analysis machine is different from your database, this usually involves setting the `bind-address` in MariaDB to `0.0.0.0` or commenting out that line.
-
-Note that using MyISAM (vs. InnoDB) as the engine on a Raspberry PI/small virtual machine had a profound impact on performance, this may not be true on all platforms. To reduce memory footprint, the I found the following tweaks to MariaDB defaults to be helpful (`/etc/mysql/mariaBase.conf.d/50-server.cnf`):
-
-```
-[mysqld]
-#
-# * Azure Adjustments
-#
-performance_schema = off
-key_buffer_size = 8M
-query_cache_size = 1M
-query-cache-limit = 1M
-tmp_table_size = 1M
-innodb_buffer_pool_size = 0
-innodb_log_buffer_size = 64K
-max_connections = 16
-sort_buffer_size = 256M
-read_buffer_size = 256K
-read_rnd_buffer_size = 256K
-join_buffer_size = 64K
-thread_stack = 128K
-...
-```
-
-Login to MariaDB as root user. Create the production database and optionally a development database (if you intend to run unit testing). Create the database user, according to the previously setup environmental variables (substitute in for `password` as appropriate).
-
-```
-DROP DATABASE if exists dota;
-CREATE DATABASE dota;
-CREATE DATABASE dota_dev;
-
-CREATE USER 'dota'@'localhost' IDENTIFIED BY 'password1';
-GRANT ALL PRIVILEGES ON dota.* TO 'dota'@'localhost';
-GRANT ALL PRIVILEGES ON dota_dev.* TO 'dota'@'localhost';
-```
-
-Upgrade the database to the latest version. The project uses the `alembic` migration package for all changes to database structure. The database can always be re-created with the following steps:
-
-```
-$ python db_util.py --create
-$ alembic upgrade head
-INFO  [alembic.runtime.migration] Context impl MySQLImpl.
-INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
-INFO  [alembic.runtime.migration] Running upgrade  -> 921d6d16a9ee, revise fetch_win_rate
-INFO  [alembic.runtime.migration] Running upgrade 921d6d16a9ee -> c71c3f058b8c, Add indices
-...
-```
-
-## MongoDB
+## 
 
 Create the admin user:
 
@@ -253,6 +202,10 @@ redirect_stderr=true
 ```
 
 Restart the supervisor service: `sudo systemctl restart supervisor`. Now requests to port 80 (at least the root page) should be re-directed to `gunicorn` which is running on port 8000. This should all survive a reboot and is worth testing.
+
+## Regenerating Priors
+
+The script `analytics/generate_priors.py` rebuilds the files `prior_final.csv` and `prior_final.json` using recent match history and lane presence from Dotabuff (see description above). Prior to running this script, `prior_mask.csv` must be updated to include new or renamed heroes. The code will issues warnings if there is a mismatch.
 
 ## Database Backup
 

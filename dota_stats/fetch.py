@@ -186,7 +186,7 @@ def parse_players(match_id, players):
             dire_gpm.append(player['gold_per_min'])
 
         # Net worth
-        gold_spent[player['hero_id']] = player['gold_spent']
+        gold_spent[str(player['hero_id'])] = player['gold_spent']
 
         # Get active items on hero
         items = []
@@ -202,7 +202,7 @@ def parse_players(match_id, players):
         for field in bp_fields:
             items.append(player[field])
 
-        items_dict[player['hero_id']] = items
+        items_dict[str(player['hero_id'])] = items
 
         # Sort heroes by farm -- probably not correct but good first pass
         radiant_heroes = [x for _, x in sorted(zip(radiant_gpm,
@@ -256,8 +256,8 @@ def parse_match(match):
                 'dire_heroes': dire_heroes,
                 'radiant_win': match['radiant_win'],
                 'api_skill': match['api_skill'],
-                'items': json.dumps(items_dict),
-                'gold_spent': json.dumps(gold_spent),
+                'items': items_dict,
+                'gold_spent': gold_spent,
             }
 
     return summary
@@ -481,14 +481,11 @@ def main():
     query = {'_id': {'$gte': key_begin, '$lte': key_end}}
     rows1 = mongo_db.matches.find(query)
 
-    import pdb
-    pdb.set_trace()
-
     count = 0
     for row in rows1:
         MATCH_IDS[row['match_id']] = row['start_time']
         count += 1
-    print("Records to seed MATCH_IDS 1: {}".format(count))
+    log.info("Records to seed MATCH_IDS: %d" % count)
 
     # Main loop over heroes. Create the thread pool now to prevent constant
     # creation and destruction of threads. Also, destroy database connection

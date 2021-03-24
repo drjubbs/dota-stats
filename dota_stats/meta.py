@@ -116,7 +116,7 @@ HERO_DICT = {
         108: 'underlord', 109: 'terrorblade', 110: 'phoenix',
         111: 'oracle', 112: 'winter-wyvern', 113: 'arc-warden',
         114: 'monkey-king', 119: 'dark-willow', 120: 'pangolier',
-        121: 'grimstroke', 123: 'hookwink', 126: 'void-spirit',
+        121: 'grimstroke', 123: 'hoodwink', 126: 'void-spirit',
         128: 'snapfire', 129: 'mars'}
 
 REVERSE_HERO_DICT = {}

@@ -4,6 +4,7 @@ import unittest
 import logging
 import os
 import json
+import numpy as np
 import fetch
 import fetch_summary
 from dota_stats import meta, db_util, win_rate_pick_rate, dotautil, \
@@ -195,7 +196,7 @@ class TestFetch(TestDB):
         with open("./testing/backpack.json") as filename:
             match = json.loads(filename.read())
         parsed_match = fetch.parse_match(match)
-        item_dict = json.loads(parsed_match['items'])
+        item_dict = parsed_match['items']
         jugg = item_dict[str(meta.REVERSE_HERO_DICT['juggernaut'])]
         self.assertTrue(meta.ITEMS['phase_boots']['id'] in jugg)
 
@@ -294,49 +295,56 @@ class TestFetchSummary(TestDB):
         self.assertEqual(row2[-1], 3)
 
 
-# class TestWinRatePosition(TestDBUtil):
-#     """Test cases for winrate by position probability model"""
-#
-#     def test_winrate_position(self):
-#         """Test assignment of heroes to positions and winrates"""
-#
-#         rows = []
-#         for match in self.session.query(db_util.Match).all():
-#             rows.append((
-#                 match.match_id,
-#                 match.radiant_heroes,
-#                 match.dire_heroes,
-#                 match.radiant_win
-#             ))
-#
-#         hml = win_rate_position.HeroMaxLikelihood(
-#             os.path.join("analytics", "prior_final.json"))
-#         total_win_mat, total_count_mat = hml.matches_to_summary(rows)
-#
-#         # 6 matches * 5 heroes, 1 winning each game = 30 wins, 60 total
-#         self.assertEqual(np.sum(total_win_mat), 30.0)
-#         self.assertEqual(np.sum(total_count_mat), 60.0)
-#
-#         # Drow in three matches, 3 wins
-#         drow_id = meta.REVERSE_HERO_DICT['drow-ranger']
-#         drow_idx = meta.HEROES.index(drow_id)
-#
-#         self.assertEqual(total_win_mat[drow_idx, :].sum(), 3)
-#         self.assertEqual(total_count_mat[drow_idx, :].sum(), 3)
-#
-#         # Anti-mage in all, 2 wins
-#         am_id = meta.REVERSE_HERO_DICT['anti-mage']
-#         am_idx = meta.HEROES.index(am_id)
-#
-#         self.assertEqual(total_win_mat[am_idx, :].sum(), 2)
-#         self.assertEqual(total_count_mat[am_idx, :].sum(), 6)
-#
-#         # dazzle, mirana, mars, zeus, phantom-assassin
-#         max_h, _ = hml.find_max_likelihood([50, 9, 129, 22, 44])
-#         self.assertEqual(max_h, [44, 22, 129, 9, 50])
+class TestWinRatePosition(TestDB):
+    """Test cases for winrate by position probability model"""
+
+    def test_winrate_position(self):
+        """Test assignment of heroes to positions and winrates"""
+
+        mongo_db = db_util.connect_mongo()
+        matches = mongo_db.matches.find({})
+
+        rows = []
+        for match in matches:
+            rows.append((
+                match['match_id'],
+                match['radiant_heroes'],
+                match['dire_heroes'],
+                match['radiant_win'],
+            ))
+
+        hml = win_rate_position.HeroMaxLikelihood(
+            os.path.join("analytics", "prior_final.json"))
+        total_win_mat, total_count_mat = hml.matches_to_summary(rows)
+
+        # 4 matches * 5 heroes, 1 winning each game = 20 wins, 40 total
+        self.assertEqual(np.sum(total_win_mat), 20.0)
+        self.assertEqual(np.sum(total_count_mat), 40.0)
+
+        ww_id = meta.REVERSE_HERO_DICT['winter-wyvern']
+        ww_idx = meta.HEROES.index(ww_id)
+
+        self.assertEqual(total_win_mat[ww_idx, :].sum(), 2)
+        self.assertEqual(total_count_mat[ww_idx, :].sum(), 2)
+
+        # Anti-mage in all, 2 wins
+        am_id = meta.REVERSE_HERO_DICT['anti-mage']
+        am_idx = meta.HEROES.index(am_id)
+
+        self.assertEqual(total_win_mat[am_idx, :].sum(), 3)
+        self.assertEqual(total_count_mat[am_idx, :].sum(), 4)
+
+        # dazzle, mirana, mars, zeus, phantom-assassin
+        max_h, _ = hml.find_max_likelihood([50, 9, 129, 22, 44])
+        self.assertEqual(max_h, [44, 22, 129, 9, 50])
 
 
 if __name__ == '__main__':
+
+    # Supress output
     fetch.log.setLevel(logging.CRITICAL)
     win_rate_pick_rate.log.setLevel(logging.CRITICAL)
+    db_util.log.setLevel(logging.CRITICAL)
+    fetch_summary.log.setLevel(logging.CRITICAL)
+
     unittest.main()

@@ -106,8 +106,8 @@ class HeroMaxLikelihood:
         total_win_mat = np.zeros((meta.NUM_HEROES, 5))
 
         for row in rows:
-            radiant_heroes = json.loads(row[1])
-            dire_heroes = json.loads(row[2])
+            radiant_heroes = row[1]
+            dire_heroes = row[2]
 
             total_win_mat, total_count_mat = \
                 self.row_to_matrix(radiant_heroes,
