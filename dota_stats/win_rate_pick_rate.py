@@ -8,7 +8,7 @@ import time
 import datetime as dt
 import pandas as pd
 from dota_stats import db_util, dotautil, meta
-from log_conf import get_logger
+from dota_stats.log_conf import get_logger
 
 log = get_logger("win_rate_pick_rate")
 
@@ -89,10 +89,26 @@ def write_to_database(mongo_db, summary, skill, end_time):
         mongo_db.hero_win_rate.replace_one({"_id": doc_id}, doc, upsert=True)
 
 
-def get_current_win_rate_table(days):
+def get_default_summary():
+    """Return a DataFrame with null entries to ensure code works if the
+     database is left blank or a skill level is missing"""
+
+    numh = meta.NUM_HEROES
+    df_default = pd.DataFrame({
+        'hero': 3 * list(meta.HERO_DICT.keys()),
+        'skill': numh*[1] + numh*[2] + numh*[3],
+        'radiant_win': 3 * meta.NUM_HEROES * [0],
+        'radiant_total': 3 * meta.NUM_HEROES * [0],
+        'dire_win': 3 * meta.NUM_HEROES * [0],
+        'dire_total': 3 * meta.NUM_HEROES * [0],
+    })
+
+    return df_default
+
+
+def get_current_win_rate_table(mongo_db, days):
     """Sets a summary table for current win rates, spanning `days` worth of
     time"""
-    mongo_db = db_util.connect_mongo()
     summary = pd.DataFrame(mongo_db.hero_win_rate.find())
 
     # Columns to re-arrange into... used later for now construct blank
@@ -103,6 +119,13 @@ def get_current_win_rate_table(days):
 
     summary = summary[['hero', 'skill', 'radiant_win', 'radiant_total',
                        'dire_win', 'dire_total']]
+
+    # Blank/zero entries for each hero/skill so the code doesn't crash if a
+    # hero or skill level is missing or the database has no entries.
+
+    default_summary = get_default_summary()
+    summary = pd.concat([summary, default_summary])
+
     grpd = summary.groupby(["hero", "skill"]).sum()
     grpd.reset_index(inplace=True)
 
@@ -148,8 +171,8 @@ def main(days, skill):
 
         matches = mongo_db.matches.find(
             {'_id': {
-               '$gte': db_util.get_key(skill, btime, 0),
-               '$lte': db_util.get_key(skill, etime, 0)
+                '$gte': db_util.get_key(skill, btime, 0),
+                '$lte': db_util.get_key(skill, etime, 0)
             }}
         )
         df_hero, count = parse_records(matches)

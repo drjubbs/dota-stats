@@ -8,7 +8,7 @@ import datetime as dt
 import numpy as np
 import fetch
 import fetch_summary
-from dota_stats import meta, db_util, win_rate_pick_rate, dotautil, \
+from dota_stats import meta, db_util, db_tools, win_rate_pick_rate, dotautil, \
     win_rate_position
 
 # Globals
@@ -48,7 +48,7 @@ class TestDB(unittest.TestCase):
             raise NotImplementedError("Must be on development environment!")
 
         # Create and upgrade database
-        db_util.create_database()
+        db_tools.create_database()
 
         cls.mongo_db = db_util.connect_mongo()
 
@@ -58,7 +58,12 @@ class TestDB(unittest.TestCase):
             db_txt = json.loads(filehandle.read())
 
         cls.mongo_db.matches.insert_many(db_txt)
-        win_rate_pick_rate.main(1, 3)
+
+        # Populate the summary tables
+        win_rate_pick_rate.main(days=1, skill=1)
+        win_rate_pick_rate.main(days=1, skill=2)
+        win_rate_pick_rate.main(days=1, skill=3)
+        fetch_summary.main(days=5, use_current_time=False)
 
     def tearDown(self):
         pass
@@ -81,12 +86,12 @@ class TestDBUtil(TestDB):
         """Clear out the database"""
 
         # No matches on a 10 day window relative to max time
-        rec_matches, rec_winrate = db_util.purge_database(
+        rec_matches, rec_winrate = db_tools.purge_database(
             10, use_current_time=False)
         self.assertEqual(rec_matches, 0)
 
         # Four matches on a zero day window
-        rec_matches, rec_winrate = db_util.purge_database(
+        rec_matches, rec_winrate = db_tools.purge_database(
             -1, use_current_time=False)
         self.assertEqual(rec_matches, 4)
         self.assertTrue(rec_winrate, meta.NUM_HEROES * 24)
@@ -97,9 +102,9 @@ class TestWinRatePickRate(TestDB):
 
     def test_win_rate_pick_rate(self):
         """Test code to calculate win rate vs. pick rate tables"""
-
+        mongo_db = db_util.connect_mongo()
         win_rate_pick_rate.main(days=2, skill=3)
-        df_out = win_rate_pick_rate.get_current_win_rate_table(1)
+        df_out = win_rate_pick_rate.get_current_win_rate_table(mongo_db, 1)
 
         # Integrity checks
         summary = df_out.sum()
@@ -112,25 +117,18 @@ class TestWinRatePickRate(TestDB):
             sum(df_out[['radiant_total', 'dire_total']].sum(axis=1)))
 
         # Individual heroes
-        self.assertEqual(
-            df_out[df_out['hero'] == 'anti-mage']['radiant_win'].values[0],
-            3
-        )
+        mask = df_out['hero_skill'] == 'ANTI-MAGE_3'
+        self.assertEqual(df_out[mask]['radiant_win'].values[0], 3)
+        self.assertEqual(df_out[mask]['dire_win'].values[0], 0)
 
-        self.assertEqual(
-            df_out[df_out['hero'] == 'anti-mage']['dire_win'].values[0],
-            0
-        )
+        mask = df_out['hero_skill'] == 'SHADOW-FIEND_3'
+        self.assertEqual(df_out[mask]['radiant_win'].values[0], 2)
 
-        self.assertEqual(
-            df_out[df_out['hero'] == 'shadow-fiend']['radiant_win'].values[0],
-            2
-        )
-
-        self.assertEqual(
-            df_out[df_out['hero'] == 'silencer']['radiant_win'].values[0],
-            1
-        )
+        # We should only have skill level 3 in test database
+        mask = df_out['hero_skill'] == 'ANTI-MAGE_1'
+        self.assertEqual(df_out[mask]['total'].values[0], 0)
+        mask = df_out['hero_skill'] == 'ANTI-MAGE_2'
+        self.assertEqual(df_out[mask]['total'].values[0], 0)
 
 
 class TestDotaUtil(unittest.TestCase):
@@ -353,11 +351,10 @@ class TestWinRatePosition(TestDB):
 
 
 if __name__ == '__main__':
-
     # Supress output
     fetch.log.setLevel(logging.CRITICAL)
     win_rate_pick_rate.log.setLevel(logging.CRITICAL)
-    db_util.log.setLevel(logging.CRITICAL)
+    db_tools.log.setLevel(logging.CRITICAL)
     fetch_summary.log.setLevel(logging.CRITICAL)
 
     unittest.main()

@@ -11,7 +11,7 @@ import pandas as pd
 import pytz
 from dota_stats.db_util import connect_mongo, get_max_start_time
 from dota_stats import dotautil
-from log_conf import get_logger
+from dota_stats.log_conf import get_logger
 
 log = get_logger("fetch_summary")
 
@@ -91,16 +91,17 @@ def get_health_summary(mongo_db, days, timezone, hour=True,
     )
     rows = pd.DataFrame(matches)
 
-    # Trim columns and renamed
-    rows = rows[['start_time', 'api_skill']]
-    rows = rows.rename(columns={
-        'start_time': 'time',
-        'api_skill': 'skill'
-    })
-
     if len(rows) == 0:
         df_summary = df_blank
     else:
+
+        # Trim columns and renamed
+        rows = rows[['start_time', 'api_skill']]
+        rows = rows.rename(columns={
+            'start_time': 'time',
+            'api_skill': 'skill'
+        })
+
         # Apply UTC offset
         rows['time_local'] = rows['time'] + utc_hour*3600
         rows['time_local_rnd'] = [

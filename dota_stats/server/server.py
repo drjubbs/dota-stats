@@ -7,20 +7,21 @@ import os
 import plotly
 import plotly.graph_objs as go
 from flask import Flask, render_template
-from flask_sqlalchemy import SQLAlchemy
+from flask_pymongo import PyMongo
 from dota_stats import win_rate_pick_rate, fetch_summary
 
+
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DOTA_DB_URI']
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
+app.config["MONGO_URI"] = os.environ["DOTA_MONGO_URI"]
+mongo = PyMongo(app)
 
 
 def get_health_chart(days, timezone, hour=True):
     """Fetches a statistics health summary table and formats into a plotly
     chart."""
 
-    df_summary, rows = fetch_summary.get_health_summary(days, timezone, hour)
+    df_summary, rows = fetch_summary.get_health_summary(mongo.db, days,
+                                                        timezone, hour)
 
     # For plot
     fig = go.Figure(data=[
@@ -45,7 +46,7 @@ def status():
     """Index page for server, currently contains everything on the site"""
 
     # Win rate / pick rate by skill level
-    df_sql = win_rate_pick_rate.get_current_win_rate_table(3)
+    df_sql = win_rate_pick_rate.get_current_win_rate_table(mongo.db, 3)
 
     radiant_vs_dire = []
     pick_vs_win = {}
@@ -78,11 +79,13 @@ def status():
     win_rate_2 = json.dumps(pick_vs_win[2], cls=plotly.utils.PlotlyJSONEncoder)
     win_rate_3 = json.dumps(pick_vs_win[3], cls=plotly.utils.PlotlyJSONEncoder)
 
+
     # ---------------------------------------------------------------
     # Health metrics
     # ---------------------------------------------------------------
     rec_plot30, _ = get_health_chart(30, 'US/Eastern', hour=False)
     rec_plot3, rec_count_table = get_health_chart(3, 'US/Eastern')
+
 
     return render_template("index.html",
                            radiant_vs_dire=radiant_vs_dire,
@@ -92,7 +95,6 @@ def status():
                            rec_count_table=rec_count_table,
                            rec_plot3=rec_plot3,
                            rec_plot30=rec_plot30, )
-
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
