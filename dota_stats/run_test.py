@@ -4,6 +4,7 @@ import unittest
 import logging
 import os
 import json
+import datetime as dt
 import numpy as np
 import fetch
 import fetch_summary
@@ -259,10 +260,21 @@ class TestFetchSummary(TestDB):
         )
 
     def test_get_health_summary(self):
-        """Check service health"""
+        """Checks on report for service health (records per hour/day)"""
+
+        # Check creation of blank dataframe
+        start = dt.datetime(2020, 7, 23, 1, 20, 30)
+        blank, begin = fetch_summary.get_blank_time_summary(5, True, start, 0)
+        self.assertEqual(len(blank), 120)
+        self.assertEqual(blank.index[0], '2020-07-23T01:00:00+00:00')
+
+        # Begin: GMT: Saturday, July 18, 2020 1: 00:00 AM
+        self.assertTrue(begin, 1595034000)
+
+        mongo_db = db_util.connect_mongo()
 
         df1, rows1 = fetch_summary.get_health_summary(
-            3, 'UTC', hour=True, use_current_time=False)
+            mongo_db, days=3, timezone='UTC', hour=True, use_current_time=False)
 
         # Most recent hour in database should have two entries, one in the
         # trailing hour, then 1 entry about a day earlier
@@ -280,7 +292,8 @@ class TestFetchSummary(TestDB):
 
         # Daily summary
         df2, rows2 = fetch_summary.get_health_summary(
-            5, 'UTC', hour=False, use_current_time=False)
+            mongo_db, days=5, timezone='UTC', hour=False,
+            use_current_time=False)
 
         self.assertEqual(df2.loc['2021-03-14T00:00:00+00:00']['very_high'],
                          3.0)

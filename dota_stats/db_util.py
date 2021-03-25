@@ -2,29 +2,13 @@
 """Utility functions to manage the MySQL database, includes SQLAlchemy
 classes and functionality.
 """
-import os
 import argparse
-import logging
-import sys
+import os
 from datetime import datetime as dt
-import datetime
 from pymongo import MongoClient
+from log_conf import get_logger
 
-
-# Logging
-log = logging.getLogger("db_util")
-if int(os.environ['DOTA_LOGGING']) == 0:
-    log.setLevel(logging.INFO)
-else:
-    log.setLevel(logging.DEBUG)
-ch = logging.StreamHandler(sys.stdout)
-fmt = logging.Formatter(
-        fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt="%Y-%m-%dT%H:%M:%S %Z")
-ch.setFormatter(fmt)
-log.addHandler(ch)
-
-
+log = get_logger("db_util")
 
 def connect_mongo():
     """Connect to MongoDB"""
@@ -61,13 +45,13 @@ def purge_database(days, use_current_time=True):
     mongo_db = connect_mongo()
     query = {'start_time': {'$lte': cutoff}}
     match_count = mongo_db.matches.count_documents(query)
-    log.info("Purging %d from %s" % (match_count, "matches"))
+    log.info("Purging %d from %s" , match_count, "matches")
     mongo_db.matches.delete_many(query)
 
     query = {'time': {'$lte': cutoff}}
     hero_win_rate_count = mongo_db.hero_win_rate.count_documents(query)
-    log.info("Purging %d from %s" % (hero_win_rate_count,
-                                     "hero_win_rate_count"))
+    log.info("Purging %d from %s" , hero_win_rate_count,
+                                     "hero_win_rate_count")
     mongo_db.hero_win_rate.delete_many(query)
 
     return match_count, hero_win_rate_count
@@ -78,7 +62,7 @@ def create_database():
 
     mongo_db = connect_mongo()
     for collection in mongo_db.list_collection_names():
-        log.info("MongoDB Dropping '{0}'".format(collection))
+        log.info("MongoDB Dropping %s", collection)
         mongo_db[collection].drop()
 
     # Create indcies

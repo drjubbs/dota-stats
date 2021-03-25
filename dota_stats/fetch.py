@@ -23,7 +23,6 @@ single match from the API, parses the output in `parse_match`, and returns.
 Control is returned to `process_matches` and data is written into database
 in `write_matches` if valid matches still exist.
 """
-import logging
 import os
 import sys
 import ssl
@@ -36,12 +35,14 @@ import datetime as dt
 import requests
 import numpy as np
 from dota_stats import meta, db_util
+from log_conf import get_logger
 
+log = get_logger("fetch")
 
 # Globals
-NUM_THREADS = int(os.environ['DOTA_THREADS'])    # 1 = single threaded
+NUM_THREADS = int(os.environ['DOTA_THREADS'])  # 1 = single threaded
 MIN_MATCH_LEN = 1200
-INITIAL_HORIZON = 3    # Days to load from database on start-up
+INITIAL_HORIZON = 3  # Days to load from database on start-up
 CTX = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
 
 # Globals used in multi-threading
@@ -79,18 +80,6 @@ PLAYER_FIELDS = [
     "scaled_hero_healing"
 ]
 
-# Logging
-log = logging.getLogger("fetch")
-if int(os.environ['DOTA_LOGGING']) == 0:
-    log.setLevel(logging.INFO)
-else:
-    log.setLevel(logging.DEBUG)
-ch = logging.StreamHandler(sys.stdout)
-fmt = logging.Formatter(
-        fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt="%Y-%m-%dT%H:%M:%S %Z")
-ch.setFormatter(fmt)
-log.addHandler(ch)
 
 
 class ParseException(Exception):
@@ -106,9 +95,9 @@ def fetch_url(url):
     outages, etc..."""
 
     sleep_schedule = np.logspace(-0.5, 3, 20)
-    sleep_schedule += sleep_schedule*np.random.rand(20)
+    sleep_schedule += sleep_schedule * np.random.rand(20)
     for sleep in sleep_schedule:
-        time.sleep(np.random.uniform(0.3*sleep, 0.7*sleep))
+        time.sleep(np.random.uniform(0.3 * sleep, 0.7 * sleep))
         headers = {
             'Accept': 'gzip',
             'Content-Encoding': 'gzip',
@@ -219,12 +208,13 @@ def parse_match(match):
     out into a separate subroutine for clarity.
     """
     match['batch_time'] = int(dt.datetime.fromtimestamp(match[
-        'start_time']).strftime("%Y%m%d_%H%M"))
+                                                            'start_time']).strftime(
+        "%Y%m%d_%H%M"))
 
     # Bad game mode
-    if not(meta.MODE_ENUM[match['game_mode']] in
-           ["All Pick", "Captains Mode", "Random Draft", "Single Draft",
-            "All Random", "Least Played"]):
+    if not (meta.MODE_ENUM[match['game_mode']] in
+            ["All Pick", "Captains Mode", "Random Draft", "Single Draft",
+             "All Random", "Least Played"]):
         raise ParseException("Bad Game Mode")
 
     # Bail if zero length matches
@@ -234,7 +224,7 @@ def parse_match(match):
     # Lobby types
     if not match['lobby_type'] in meta.LOBBY_ENUM.values():
         raise ValueError("Unknown lobby type: {}".format(match['match_id']))
-    if not(match['lobby_type'] in [0, 2, 7, 9, 13]):
+    if not (match['lobby_type'] in [0, 2, 7, 9, 13]):
         raise ParseException("Lobby Type")
 
     players = match["players"]
@@ -243,22 +233,22 @@ def parse_match(match):
     if {} in players:
         raise ParseException("Min Players")
 
-    leaver, radiant_heroes, dire_heroes, items_dict, gold_spent =\
+    leaver, radiant_heroes, dire_heroes, items_dict, gold_spent = \
         parse_players(match['match_id'], players)
 
     if leaver:
         raise ParseException("Leaver")
 
     summary = {
-                'match_id': match['match_id'],
-                'start_time': match['start_time'],
-                'radiant_heroes': radiant_heroes,
-                'dire_heroes': dire_heroes,
-                'radiant_win': match['radiant_win'],
-                'api_skill': match['api_skill'],
-                'items': items_dict,
-                'gold_spent': gold_spent,
-            }
+        'match_id': match['match_id'],
+        'start_time': match['start_time'],
+        'radiant_heroes': radiant_heroes,
+        'dire_heroes': dire_heroes,
+        'radiant_win': match['radiant_win'],
+        'api_skill': match['api_skill'],
+        'items': items_dict,
+        'gold_spent': gold_spent,
+    }
 
     return summary
 
@@ -300,15 +290,15 @@ def process_match(hero, skill, match_id):
     try:
         match = fetch_match(match_id, skill)
     except APIException as e_msg:
-        log.error("{0:20.20} {1}". format("API Error", str(e_msg)))
+        log.error("{0:20.20} {1}".format("API Error", str(e_msg)))
         return None
 
     try:
         summary = parse_match(match)
-        log.debug("{0:20.20} {1}". format("Success", txt))
+        log.debug("{0:20.20} {1}".format("Success", txt))
         return summary
     except ParseException as e_msg:
-        log.debug("{0:20.20} {1}". format(str(e_msg), txt))
+        log.debug("{0:20.20} {1}".format(str(e_msg), txt))
         return None
 
 
@@ -328,11 +318,11 @@ def write_matches(mongo_db, matches):
         # Expand out the heroes into columns for hero pair searching
         radiant = [meta.HERO_DICT[int(t)] for t in summary['radiant_heroes']]
         for hero in radiant:
-            summary["rh-"+hero] = 1
+            summary["rh-" + hero] = 1
 
         dire = [meta.HERO_DICT[int(t)] for t in summary['dire_heroes']]
         for hero in dire:
-            summary["dh-"+hero] = 1
+            summary["dh-" + hero] = 1
 
         mongo_db.matches.insert_one(summary)
 
@@ -404,7 +394,7 @@ def fetch_matches(mongo_db, hero, skill, executor):
         if resp['num_results'] > 0:
             match_ids = [t['match_id'] for t in resp['matches']]
             process_matches(mongo_db, match_ids, hero, skill, executor)
-            start_at_match_id = min(match_ids)-1
+            start_at_match_id = min(match_ids) - 1
 
         # Set dictionary for start time so we don't fetch multiple times,
         # both in current cache as well as the database.
@@ -425,9 +415,9 @@ def fetch_matches(mongo_db, hero, skill, executor):
             log.info("Remaining %d (Match ID %d)", resp['results_remaining'],
                      start_at_match_id)
 
-        counter = counter+1
+        counter = counter + 1
 
-    mpm = str(60*counter/(time.time()-start))
+    mpm = str(60 * counter / (time.time() - start))
     log.debug("Matches per minute: %s", mpm)
 
 
@@ -472,7 +462,7 @@ def main():
     # INITIAL_HORIZON (don't refetch there)
 
     # Get UTC timestamps spanning HORIZON_DAYS ago to today
-    start_time = int((dt.datetime.utcnow()-dt.timedelta(
+    start_time = int((dt.datetime.utcnow() - dt.timedelta(
         days=INITIAL_HORIZON)).timestamp())
     end_time = int(dt.datetime.utcnow().timestamp())
 
@@ -485,7 +475,7 @@ def main():
     for row in rows1:
         MATCH_IDS[row['match_id']] = row['start_time']
         count += 1
-    log.info("Records to seed MATCH_IDS: %d" % count)
+    log.info("Records to seed MATCH_IDS: %d", count)
 
     # Main loop over heroes. Create the thread pool now to prevent constant
     # creation and destruction of threads. Also, destroy database connection

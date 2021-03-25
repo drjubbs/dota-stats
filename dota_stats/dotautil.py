@@ -9,8 +9,6 @@ See individual methods for more information.
 """
 
 from datetime import datetime
-import numpy as np
-from dota_stats import meta
 
 
 class TimeMethods:
@@ -50,4 +48,3 @@ class TimeMethods:
             text.append(time_str)
 
         return text, begin, end
-

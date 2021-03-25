@@ -3,26 +3,14 @@
 should be automated in a cron job.
 """
 import argparse
-import logging
-import os
 import sys
 import time
 import datetime as dt
 import pandas as pd
 from dota_stats import db_util, dotautil, meta
+from log_conf import get_logger
 
-# Logging
-log = logging.getLogger("prwr")
-if int(os.environ['DOTA_LOGGING']) == 0:
-    log.setLevel(logging.INFO)
-else:
-    log.setLevel(logging.DEBUG)
-ch = logging.StreamHandler(sys.stdout)
-fmt = logging.Formatter(
-    fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt="%Y-%m-%dT%H:%M:%S %Z")
-ch.setFormatter(fmt)
-log.addHandler(ch)
+log = get_logger("win_rate_pick_rate")
 
 
 def parse_records(matches):
@@ -158,11 +146,12 @@ def main(days, skill):
     for ttime, btime, etime in zip(text, begin, end):
         qbegin = time.time()
 
-        key_begin = db_util.get_key(skill, btime, 0)
-        key_end = db_util.get_key(skill, etime, 0)
-
-        query = {'_id': {'$gte': key_begin, '$lte': key_end}}
-        matches = mongo_db.matches.find(query)
+        matches = mongo_db.matches.find(
+            {'_id': {
+               '$gte': db_util.get_key(skill, btime, 0),
+               '$lte': db_util.get_key(skill, etime, 0)
+            }}
+        )
         df_hero, count = parse_records(matches)
         write_to_database(mongo_db, df_hero, skill, etime)
 

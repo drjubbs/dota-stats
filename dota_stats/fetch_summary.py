@@ -6,68 +6,42 @@ HORIZON_DAYS controls how far back in history is reprocessed each time
 the script runs.
 """
 import argparse
-import os
-import sys
-import logging
 import datetime as dt
 import pandas as pd
 import pytz
 from dota_stats.db_util import connect_mongo, get_max_start_time
 from dota_stats import dotautil
+from log_conf import get_logger
 
-
-# Logging
-log = logging.getLogger("fetch_summary")
-if int(os.environ['DOTA_LOGGING']) == 0:
-    log.setLevel(logging.INFO)
-else:
-    log.setLevel(logging.DEBUG)
-ch = logging.StreamHandler(sys.stdout)
-fmt = logging.Formatter(
-        fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt="%Y-%m-%dT%H:%M:%S %Z")
-ch.setFormatter(fmt)
-log.addHandler(ch)
+log = get_logger("fetch_summary")
 
 
 def isoformat_with_tz(time_obj, utc_hour):
     """Format to 8601 with timezone offset"""
 
-    txt = time_obj.strftime("%Y-%m-%dT%H:%M:%S")
+    txt = time_obj.strftime('%Y-%m-%dT%H:%M:%S')
     txt = "{0}{1:+03d}:00".format(txt, utc_hour)
     return txt
 
 
-def get_health_summary(days, timezone, hour=True, use_current_time=True):
-    """Returns a Pandas dataframe summarizing number of matches processed
-    over an interval of days. Defaults to by hour, can we chaned to daily
-    view through use of optional `hour` argument`.
+def get_blank_time_summary(days, hour, start, utc_hour):
+    """Create a blank dataframe for the time range of interest.
+
+    days: how many days to create a blank data frame for
+    hours: boolean, if true hourly data, if false do daily data
+    start: beginning time of data frame
+    utc_hour: hourly offset to localize time (e.g. -4 for Eastern Std Time
     """
 
-    # Database connection
-    mongo_db = connect_mongo()
-
-    # Get TZ offsets, do everything relative to current TZ offset
-    local_tz = pytz.timezone(timezone)
-    utc_offset = local_tz.utcoffset(dt.datetime.now())
-    utc_hour = int(utc_offset.total_seconds() / 3600)
-
-    if use_current_time:
-        now = dt.datetime.utcnow()
-    else:
-        now = dt.datetime.fromtimestamp(get_max_start_time())
-
-    now = now + utc_offset
-
-    # Create a blank dataframe for the time range of interest, starting with
-    # times.
     if hour:
-        now_rnd = dt.datetime(now.year, now.month, now.day, now.hour, 0, 0)
+        now_rnd = dt.datetime(start.year, start.month, start.day,
+                              start.hour, 0, 0)
         times = [isoformat_with_tz(now_rnd - dt.timedelta(hours=i), utc_hour)
                  for i in range(24 * days)]
 
     else:
-        now_rnd = dt.datetime(now.year, now.month, now.day, 0, 0, 0)
+        now_rnd = dt.datetime(start.year, start.month, start.day,
+                              0, 0, 0)
         times = [isoformat_with_tz(now_rnd - dt.timedelta(days=i), utc_hour)
                  for i in range(days)]
 
@@ -78,12 +52,43 @@ def get_health_summary(days, timezone, hour=True, use_current_time=True):
         3: [0] * len(times),
     })
 
-    # Fetch from database, convert to DataFrame
     begin = int((now_rnd - dt.timedelta(days=days)).timestamp())
-    query = {"start_time": {"$gte": begin}}
-    projection = {"start_time": 1, "api_skill": 1}
 
-    matches = mongo_db.matches.find(query, projection)
+    return df_blank, begin
+
+
+def get_health_summary(mongo_db, days, timezone, hour=True,
+                       use_current_time=True):
+    """Returns a Pandas dataframe summarizing number of matches processed
+    over an interval of hours or days. Defaults to by hour, can we chaned to
+    daily view through use of optional `hour` argument`.
+
+    mongo_db: Instance of Mongo client
+    days: Number of days to summarize over
+    timezone: Which timezone to localize data into
+    hour: If true hourly summary, otherwise daily
+    use_current_time: If true, use current time to create beginning of
+                      otherwise use the most recent date in the database.
+    """
+
+    # Get TZ offsets, do everything relative to current TZ offset
+    utc_offset = pytz.timezone(timezone).utcoffset(dt.datetime.now())
+    utc_hour = int(utc_offset.total_seconds() / 3600)
+
+    if use_current_time:
+        now = dt.datetime.utcnow()
+    else:
+        now = dt.datetime.fromtimestamp(get_max_start_time())
+
+    now = now + utc_offset
+
+    df_blank, begin = get_blank_time_summary(days, hour, now, utc_hour)
+
+    # Fetch from database, convert to DataFrame
+    matches = mongo_db.matches.find(
+        filter={"start_time": {"$gte": begin}},
+        projection={"start_time": 1, "api_skill": 1}
+    )
     rows = pd.DataFrame(matches)
 
     # Trim columns and renamed
@@ -161,7 +166,7 @@ def main(days, use_current_time=True):
     mongo_db = connect_mongo()
     rows, count = fetch_rows(mongo_db, days, use_current_time)
 
-    log.info("Records: %d" % count)
+    log.info("Records: %d", count)
 
     times = []
     match_ids = []
@@ -194,8 +199,6 @@ def main(days, use_current_time=True):
 
 
 if __name__ == "__main__":
-    """Main program execution"""
-
     parser = argparse.ArgumentParser(description='Update table containing '
                                                  'record count by hour.')
     parser.add_argument("horizon_days", type=int)
