@@ -222,11 +222,20 @@ def parse_match(match):
     match['batch_time'] = int(dt.datetime.fromtimestamp(match[
         'start_time']).strftime("%Y%m%d_%H%M"))
 
+    valid_game_modes = ["game_mode_all_pick",
+                        "game_mode_captains_mode",
+                        "game_mode_random_draft",
+                        "game_mode_single_draft",
+                        "game_mode_all_random",
+                        "game_mode_least_played",
+                        "game_mode_captains_draft",
+                        "game_mode_all_draft"]
+
+    game_mode = meta.MODE_ENUM[str(match['game_mode'])]['name']
+
     # Bad game mode
-    if not(meta.MODE_ENUM[match['game_mode']] in
-           ["All Pick", "Captains Mode", "Random Draft", "Single Draft",
-            "All Random", "Least Played"]):
-        raise ParseException("Bad Game Mode")
+    if game_mode not in valid_game_modes:
+        raise ParseException("Bad Mode: {}".format(game_mode))
 
     # Bail if zero length matches
     if match['duration'] < MIN_MATCH_LEN:
@@ -301,15 +310,15 @@ def process_match(hero, skill, match_id):
     try:
         match = fetch_match(match_id, skill)
     except APIException as e_msg:
-        log.error("{0:20.20} {1}". format("API Error", str(e_msg)))
+        log.error("{0:30.30} {1}". format("API Error", str(e_msg)))
         return None
 
     try:
         summary = parse_match(match)
-        log.debug("{0:20.20} {1}". format("Success", txt))
+        log.debug("{0:30.30} {1}". format("Success", txt))
         return summary
     except ParseException as e_msg:
-        log.debug("{0:20.20} {1}". format(str(e_msg), txt))
+        log.debug("{0:30.30} {1}". format(str(e_msg), txt))
         return None
 
 
