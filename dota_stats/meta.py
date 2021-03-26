@@ -4,7 +4,8 @@
 import os
 import json
 
-with open("game_mode.json", "r") as gmj:
+cwd = os.path.dirname(os.path.realpath(__file__))
+with open(os.path.join(cwd, "game_mode.json"), "r") as gmj:
     MODE_ENUM = json.loads(gmj.read())
 
 LOBBY_ENUM = {
@@ -109,7 +110,6 @@ NUM_HEROES = len(HEROES)
 
 # Get items dictionary from OpenDota source:
 #   https://github.com/odota/dotaconstants
-cwd = os.path.dirname(os.path.realpath(__file__))
 with open(os.path.join(cwd, 'items.json')) as f:
     txt = f.read()
     ITEMS = json.loads(txt)
