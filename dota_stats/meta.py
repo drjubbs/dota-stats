@@ -4,27 +4,8 @@
 import os
 import json
 
-MODE_ENUM = {
-    1: 'All Pick (old)',
-    2: 'Captains Mode',
-    3: 'Random Draft',
-    4: 'Single Draft',
-    5: 'All Random',
-    12: 'Least Played',
-    16: 'Captains Draft',
-    18: 'Ability Draft',
-    19: 'Custom Game',
-    20: 'All Random Deathmatch',
-    21: '1v1 Mid',
-    22: 'All Pick',
-    23: 'Turbo',
-    24: 'Mutation'
-}
-
-REVERSE_MODE_ENUM = {}
-for k, v in MODE_ENUM.items():
-    REVERSE_MODE_ENUM[v.upper().replace(" ", "_").replace("(", "").replace(
-        ")", "")] = k
+with open("game_mode.json", "r") as gmj:
+    MODE_ENUM = json.loads(gmj.read())
 
 LOBBY_ENUM = {
     'INVALID': -1,
