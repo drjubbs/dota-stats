@@ -217,8 +217,16 @@ mysqldump --compact --compress --opt --databases dota -u dota -p | gzip > backup
 
 # TODO
 
-- MongoDB Migration Unit Testing
+- Confirm MMR scraping code is now working in `analytics`
   
+- Have `matchups.py` write to database, add unit testing.
+  
+- MongoDB Migration
+  
+  - When run in a crontab, getting timeout errors, why?
+  - Do a time comparison of a complete run, mariadb vs. mongodb
+  - Update environment / `env.sh` scripts in this document
+  - Check to see if bot matches are still flooding the fetch (look for heroes with few records written)
   - Back-end testing protocol
     - Write routine to dump ~5 records to file using fetch.py (one-time use)
     - Load records from file into MongoDB database
