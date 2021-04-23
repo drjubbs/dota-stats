@@ -6,7 +6,6 @@ code to estimate role based on `prior` probability models.
 import os
 import json
 from itertools import permutations
-import mariadb
 import pandas as pd
 import numpy as np
 from dota_stats import meta

@@ -42,7 +42,6 @@ class TestDB(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Setup database for testing"""
-
         # Bail if we're not in development...
         if os.environ['DOTA_MONGO_DB'] != "dotadev":
             raise NotImplementedError("Must be on development environment!")
@@ -58,12 +57,6 @@ class TestDB(unittest.TestCase):
             db_txt = json.loads(filehandle.read())
 
         cls.mongo_db.matches.insert_many(db_txt)
-
-        # Populate the summary tables
-        win_rate_pick_rate.main(days=1, skill=1)
-        win_rate_pick_rate.main(days=1, skill=2)
-        win_rate_pick_rate.main(days=1, skill=3)
-        fetch_summary.main(days=5, use_current_time=False)
 
     def tearDown(self):
         pass
@@ -85,6 +78,12 @@ class TestDBUtil(TestDB):
     def test_purge_database(self):
         """Clear out the database"""
 
+        # Create the win rate / pick rate records to check if they
+        # are purged properly
+        win_rate_pick_rate.main(1, 1)
+        win_rate_pick_rate.main(1, 2)
+        win_rate_pick_rate.main(1, 3)
+
         # No matches on a 10 day window relative to max time
         rec_matches, rec_winrate = db_tools.purge_database(
             10, use_current_time=False)
@@ -94,7 +93,8 @@ class TestDBUtil(TestDB):
         rec_matches, rec_winrate = db_tools.purge_database(
             -1, use_current_time=False)
         self.assertEqual(rec_matches, 4)
-        self.assertTrue(rec_winrate, meta.NUM_HEROES * 24)
+        # Should have one record for each hero, 24 hours, 3 skill levels
+        self.assertEqual(rec_winrate, meta.NUM_HEROES * 24 * 3)
 
 
 class TestWinRatePickRate(TestDB):
@@ -247,15 +247,22 @@ class TestFetchSummary(TestDB):
         fetch_summary.main(10, use_current_time=False)
         mongo_db = db_util.connect_mongo()
 
-        self.assertTrue(
-            mongo_db.fetch_summary.find()[0]['match_ids'],
-            4
-        )
+        # 2 matches at this hour
+        query = {"_id": "1615730400_3"}
+        results = mongo_db.fetch_summary.find(query)
 
         self.assertTrue(
-            mongo_db.fetch_summary.find()[0]['_id'],
-            1615730400
+            results[0]['rec_count'], 2
         )
+
+        # Two matches at this hour
+        query = {"_id": "1615726800_3"}
+        results = mongo_db.fetch_summary.find(query)
+
+        self.assertTrue(
+            results[0]['rec_count'], 2
+        )
+
 
     def test_get_health_summary(self):
         """Checks on report for service health (records per hour/day)"""

@@ -10,7 +10,7 @@ import datetime as dt
 import pandas as pd
 import pytz
 from dota_stats.db_util import connect_mongo, get_max_start_time
-from dota_stats import dotautil
+from dota_stats import dotautil, db_util
 from dota_stats.log_conf import get_logger
 
 log = get_logger("fetch_summary")
@@ -136,65 +136,56 @@ def get_health_summary(mongo_db, days, timezone, hour=True,
     return df_summary, rows
 
 
-def fetch_rows(mongo_db, horizon_days, use_current_time):
-    """Get the match_ids, skill level, and start times from the database
-    within `horizon_days` of current time.
-
-    If use_current_time is True (default), get time slices relative to current
-    time, otherwise, use the max time found in the database
-    """
-
-    # Get UTC timestamps spanning horizon_days ago to today
-    if use_current_time:
-        now = dt.datetime.utcnow()
-    else:
-        now = dt.datetime.fromtimestamp(get_max_start_time())
-
-    start_time = int((now-dt.timedelta(
-        days=horizon_days)).timestamp())
-    end_time = int(now.timestamp())
-
-    query = {"start_time": {"$gte": start_time, "$lte": end_time}}
-    count = mongo_db.matches.count_documents(query)
-    rows = mongo_db.matches.find(query)
-
-    return rows, count
-
-
 def main(days, use_current_time=True):
     """Main program execution"""
 
     mongo_db = connect_mongo()
-    rows, count = fetch_rows(mongo_db, days, use_current_time)
 
-    log.info("Records: %d", count)
+    if use_current_time:
+        now = dt.datetime.utcnow()
+    else:
+        now = dt.datetime.utcfromtimestamp(db_util.get_max_start_time())
 
-    times = []
-    match_ids = []
+    text, begin, end = dotautil.TimeMethods.get_hour_blocks(
+        now.timestamp(),
+        int(days * 24)
+    )
+
+    date_hours = []
     skills = []
-    for row in rows:
-        # Round off timestamps to the nearest hour, create data frame and
-        # aggregate on counts.
-        round_time = dt.datetime.fromtimestamp(row['start_time']).strftime(
-            "%Y-%m-%dT%H:00")
-        times.append(int(dt.datetime.strptime(round_time,
-                                              "%Y-%m-%dT%H:%M").timestamp()))
-        match_ids.append(row['match_id'])
-        skills.append(row['api_skill'])
+    match_ids = []
 
-    df_matches = pd.DataFrame({'date_hour': times, 'skill': skills,
-                              'match_ids': match_ids})
-    summary = df_matches.groupby(["date_hour", "skill"]).count()
-    summary.reset_index(inplace=True)
+    for ttime, btime, etime in zip(text, begin, end):
+        for skill in [1, 2, 3]:
+            query = {
+                '_id': {
+                    '$gte': db_util.get_key(skill, btime, 0),
+                    '$lte': db_util.get_key(skill, etime, 0),
+                }
+            }
+
+            date_hours.append(btime)
+            skills.append(skill)
+            match_ids.append(mongo_db.matches.count_documents(query))
+
+    summary = pd.DataFrame({
+        'date_hour': date_hours,
+        'skill': skills,
+        'match_ids': match_ids
+    })
+
+    log.info("Writing %d records to database", len(summary))
 
     # Write to database, overwriting old records
     for _, row in summary.iterrows():
 
         doc = {
-            "_id": int(row['date_hour']),
-            "skill": int(row['skill']),
-            "match_ids": int(row['match_ids']),
+            "_id": "{0:10d}_{1}".format(
+                row['date_hour'],
+                row['skill']),
+            "rec_count": int(row['match_ids']),
         }
+
         mongo_db.fetch_summary.replace_one(
             {"_id": doc['_id']}, doc, upsert=True)
 

@@ -45,12 +45,6 @@ def create_database():
     mongo_db.matches.create_index([('start_time', -1)])
     mongo_db.hero_win_rate.create_index([('time', -1)])
 
-    # Populate the summary tables
-    win_rate_pick_rate.main(days=1, skill=1)
-    win_rate_pick_rate.main(days=1, skill=2)
-    win_rate_pick_rate.main(days=1, skill=3)
-    fetch_summary.main(days=5, use_current_time=False)
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Database utilities")
