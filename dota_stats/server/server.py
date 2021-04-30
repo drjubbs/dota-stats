@@ -45,6 +45,8 @@ def get_health_chart(days, timezone, hour=True):
 def status():
     """Index page for server, currently contains everything on the site"""
 
+    print("Start of Win Rate/Pick Rate")
+
     # Win rate / pick rate by skill level
     df_sql = win_rate_pick_rate.get_current_win_rate_table(mongo.db, 3)
 
@@ -79,6 +81,7 @@ def status():
     win_rate_2 = json.dumps(pick_vs_win[2], cls=plotly.utils.PlotlyJSONEncoder)
     win_rate_3 = json.dumps(pick_vs_win[3], cls=plotly.utils.PlotlyJSONEncoder)
 
+    print("Start of Health Metrics")
 
     # ---------------------------------------------------------------
     # Health metrics
@@ -86,6 +89,8 @@ def status():
     rec_plot30, _ = get_health_chart(30, 'US/Eastern', hour=False)
     rec_plot3, rec_count_table = get_health_chart(3, 'US/Eastern')
 
+
+    print("Done")
 
     return render_template("index.html",
                            radiant_vs_dire=radiant_vs_dire,

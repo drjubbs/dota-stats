@@ -3,7 +3,7 @@
 import argparse
 from datetime import datetime as dt
 from dota_stats.log_conf import get_logger
-from dota_stats import db_util, fetch_summary, win_rate_pick_rate
+from dota_stats import db_util
 log = get_logger("db_tools")
 
 

@@ -306,6 +306,7 @@ def process_match(hero, skill, match_id):
         return summary
     except ParseException as e_msg:
         log.debug("{0:30.30} {1}". format(str(e_msg), txt))
+        return None
 
 
 def write_matches(mongo_db, matches):

@@ -263,54 +263,52 @@ class TestFetchSummary(TestDB):
             results[0]['rec_count'], 2
         )
 
-
     def test_get_health_summary(self):
         """Checks on report for service health (records per hour/day)"""
 
-        # Check creation of blank dataframe
+        # Check creation of blank dataframe, hourly
         start = dt.datetime(2020, 7, 23, 1, 20, 30)
-        blank, begin = fetch_summary.get_blank_time_summary(5, True, start, 0)
+        blank, begin, _ = fetch_summary.get_blank_time_summary(
+            days=5, hour=True, start=start)
         self.assertEqual(len(blank), 120)
-        self.assertEqual(blank.index[0], '2020-07-23T01:00:00+00:00')
+        self.assertEqual(blank.index[0], '2020-07-23T01:00:00')
+        # Begin: GMT: Saturday, July 18, 2020 2:00:00 AM
+        self.assertEqual(begin, 1595037600)
 
-        # Begin: GMT: Saturday, July 18, 2020 1: 00:00 AM
+        # Check creation of blank dataframe, daily
+        blank, begin, _ = fetch_summary.get_blank_time_summary(
+            days=5, hour=False, start=start)
+
+        self.assertEqual(len(blank), 5)
+        self.assertEqual(blank.index[0], '2020-07-23T00:00:00')
+
+        # Begin: GMT: Saturday, July 18, 2020 12:00:00 AM
         self.assertTrue(begin, 1595034000)
 
         mongo_db = db_util.connect_mongo()
 
-        df1, rows1 = fetch_summary.get_health_summary(
-            mongo_db, days=3, timezone='UTC', hour=True, use_current_time=False)
+        # From the database, 4 matches...
+        # 1615731621 Sunday, March 14, 2021 2:20:21 PM
+        # 1615731630 Sunday, March 14, 2021 2:20:30 PM
+        # 1615728046 Sunday, March 14, 2021 1:20:46 PM
+        # 1615630847 Saturday, March 13, 2021 10:20:47 AM
+        fetch_summary.main(days = 5, use_current_time=False)
 
-        # Most recent hour in database should have two entries, one in the
-        # trailing hour, then 1 entry about a day earlier
-        self.assertEqual(df1.iloc[0]['very_high'], 2)
-        self.assertEqual(df1.iloc[1]['very_high'], 1)
-        self.assertEqual(df1.loc['2021-03-13T10:00:00+00:00']['very_high'], 1)
-        self.assertEqual(df1.loc['2021-03-13T11:00:00+00:00']['very_high'], 0)
+        # Check hourly fetch...
+        df1 = fetch_summary.get_health_summary(
+            mongo_db, days=3, hour=True, use_current_time=False)
+
+        self.assertEqual(df1.loc['2021-03-14T14:00:00']['very_high'], 2)
+        self.assertEqual(df1.loc['2021-03-14T13:00:00']['very_high'], 1)
+        self.assertEqual(df1.loc['2021-03-13T10:00:00']['very_high'], 1)
         self.assertEqual(len(df1), 3 * 24)
 
-        # Quick check on the row iterable
-        row1 = None
-        for row1 in rows1:
-            break
-        self.assertEqual(row1[-1], 2)
+        # Check daily fetch
+        df2 = fetch_summary.get_health_summary(
+            mongo_db, days=3, hour=False, use_current_time=False)
+        self.assertEqual(df2.loc['2021-03-14T00:00:00']['very_high'], 3)
+        self.assertEqual(df2.loc['2021-03-13T00:00:00']['very_high'], 1)
 
-        # Daily summary
-        df2, rows2 = fetch_summary.get_health_summary(
-            mongo_db, days=5, timezone='UTC', hour=False,
-            use_current_time=False)
-
-        self.assertEqual(df2.loc['2021-03-14T00:00:00+00:00']['very_high'],
-                         3.0)
-        self.assertEqual(df2.loc['2021-03-13T00:00:00+00:00']['very_high'],
-                         1.0)
-        self.assertEqual(len(df2), 5)
-
-        # Quick check on the row iterable
-        row2 = None
-        for row2 in rows2:
-            break
-        self.assertEqual(row2[-1], 3)
 
 
 class TestWinRatePosition(TestDB):

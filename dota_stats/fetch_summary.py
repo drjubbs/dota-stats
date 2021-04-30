@@ -7,8 +7,8 @@ the script runs.
 """
 import argparse
 import datetime as dt
+from dateutil import parser
 import pandas as pd
-import pytz
 from dota_stats.db_util import connect_mongo, get_max_start_time
 from dota_stats import dotautil, db_util
 from dota_stats.log_conf import get_logger
@@ -16,33 +16,24 @@ from dota_stats.log_conf import get_logger
 log = get_logger("fetch_summary")
 
 
-def isoformat_with_tz(time_obj, utc_hour):
-    """Format to 8601 with timezone offset"""
-
-    txt = time_obj.strftime('%Y-%m-%dT%H:%M:%S')
-    txt = "{0}{1:+03d}:00".format(txt, utc_hour)
-    return txt
-
-
-def get_blank_time_summary(days, hour, start, utc_hour):
+def get_blank_time_summary(days, hour, start):
     """Create a blank dataframe for the time range of interest.
 
     days: how many days to create a blank data frame for
     hours: boolean, if true hourly data, if false do daily data
     start: beginning time of data frame
-    utc_hour: hourly offset to localize time (e.g. -4 for Eastern Std Time
     """
 
     if hour:
         now_rnd = dt.datetime(start.year, start.month, start.day,
                               start.hour, 0, 0)
-        times = [isoformat_with_tz(now_rnd - dt.timedelta(hours=i), utc_hour)
+        times = [(now_rnd - dt.timedelta(hours=i)).isoformat()
                  for i in range(24 * days)]
 
     else:
         now_rnd = dt.datetime(start.year, start.month, start.day,
                               0, 0, 0)
-        times = [isoformat_with_tz(now_rnd - dt.timedelta(days=i), utc_hour)
+        times = [(now_rnd - dt.timedelta(days=i)).isoformat()
                  for i in range(days)]
 
     # Blank dataframe, one entry for each skill level...
@@ -52,12 +43,53 @@ def get_blank_time_summary(days, hour, start, utc_hour):
         3: [0] * len(times),
     })
 
-    begin = int((now_rnd - dt.timedelta(days=days)).timestamp())
+    begin = int(parser.parse(df_blank.index[-1]).timestamp())
+    end = int(parser.parse(df_blank.index[0]).timestamp())
+    return df_blank, begin, end
 
-    return df_blank, begin
+
+def get_fetch_summary(mongo_db, begin, end, hour):
+    """Fetch summary stastics and return as dataframe. Round times
+    to nearest day if appropriate and pivot as approriate.
+    """
+    # Select records over the requested time horizon
+    query = dict(start_time={'$gte': begin,
+                             '$lte': end})
+
+    # Fetch and unpack results
+    fetch_summary = mongo_db.fetch_summary.find(query)
+    times = []
+    skills = []
+    counts = []
+    for fsum in fetch_summary:
+
+        # Round to nearest hour or day
+        this_time = dotautil.TimeMethods.get_time_nearest(
+            fsum['start_time'], hour=hour)[0]
+        times.append(this_time)
+        skills.append(fsum['skill'])
+        counts.append(fsum['rec_count'])
+
+    df_fetch = pd.DataFrame({
+        'time': times,
+        'skill': skills,
+        'rec_count': counts,
+    })
+
+    # If days was requested, we need to group and sum (fetch_summary table
+    # contains hourly data
+    df_fetch2 = df_fetch.groupby(["time", "skill"]).sum().reset_index()
+    df_fetch3 = df_fetch2.pivot(index='time',
+                                values="rec_count",
+                                columns="skill")
+
+    # Index on isoformat, useful for plotting
+    df_fetch3.index = [dt.datetime.utcfromtimestamp(t).isoformat()
+                       for t in df_fetch3.index]
+    return df_fetch3
 
 
-def get_health_summary(mongo_db, days, timezone, hour=True,
+def get_health_summary(mongo_db, days, hour=True,
                        use_current_time=True):
     """Returns a Pandas dataframe summarizing number of matches processed
     over an interval of hours or days. Defaults to by hour, can we chaned to
@@ -65,86 +97,45 @@ def get_health_summary(mongo_db, days, timezone, hour=True,
 
     mongo_db: Instance of Mongo client
     days: Number of days to summarize over
-    timezone: Which timezone to localize data into
     hour: If true hourly summary, otherwise daily
     use_current_time: If true, use current time to create beginning of
                       otherwise use the most recent date in the database.
     """
 
-    # Get TZ offsets, do everything relative to current TZ offset
-    utc_offset = pytz.timezone(timezone).utcoffset(dt.datetime.now())
-    utc_hour = int(utc_offset.total_seconds() / 3600)
-
     if use_current_time:
         now = dt.datetime.utcnow()
     else:
-        now = dt.datetime.fromtimestamp(get_max_start_time())
+        # If most recent time in database, add one day to ensure we get most
+        # recent records (i.e. not lost to rounding)
+        now = dt.datetime.fromtimestamp(get_max_start_time() + 86400)
 
-    now = now + utc_offset
+    # Get zero'd out datafrane and add in results so missing days/hours
+    # are report as zero
+    df_blank, begin, end = get_blank_time_summary(days, hour, now)
+    df_fetch = get_fetch_summary(mongo_db, begin, end, hour)
 
-    df_blank, begin = get_blank_time_summary(days, hour, now, utc_hour)
+    # Add to blank and downcast to integer
+    df_summary = df_blank.add(df_fetch, fill_value=0)
+    df_summary = df_summary.astype('int')
 
-    # Fetch from database, convert to DataFrame
-    matches = mongo_db.matches.find(
-        filter={"start_time": {"$gte": begin}},
-        projection={"start_time": 1, "api_skill": 1}
-    )
-    rows = pd.DataFrame(matches)
-
-    if len(rows) == 0:
-        df_summary = df_blank
-    else:
-
-        # Trim columns and renamed
-        rows = rows[['start_time', 'api_skill']]
-        rows = rows.rename(columns={
-            'start_time': 'time',
-            'api_skill': 'skill'
-        })
-
-        # Apply UTC offset
-        rows['time_local'] = rows['time'] + utc_hour*3600
-        rows['time_local_rnd'] = [
-            dotautil.TimeMethods.get_time_nearest(t, hour=hour)[0]
-            for t in rows['time_local']]
-        rows['rec_count'] = 1
-
-        df_summary = rows[["time_local_rnd", "skill", "rec_count"]]
-        df_summary = df_summary.groupby(["time_local_rnd", "skill"]).sum()
-        df_summary.reset_index(inplace=True)
-        df_summary = df_summary.pivot(index='time_local_rnd', columns='skill',
-                                      values='rec_count')
-
-        dt2 = [dt.datetime.utcfromtimestamp(float(t)) for t in df_summary.index]
-        dt3 = [isoformat_with_tz(t, utc_hour) for t in dt2]
-        df_summary.index = dt3
-
-        # Add them together
-        df_summary = df_blank.add(df_summary, fill_value=0)
-
-    # Rename columns
+    # Rename columns and sort
     df_summary = df_summary[[1, 2, 3]]
     df_summary.columns = ['normal', 'high', 'very_high']
     df_summary = df_summary.sort_index(ascending=False)
 
-    # For summary table
-    rows = zip(df_summary.index,
-               df_summary['normal'].values,
-               df_summary['high'].values,
-               df_summary['very_high'].values)
-
-    return df_summary, rows
+    return df_summary
 
 
-def main(days, use_current_time=True):
-    """Main program execution"""
+def create_fetch_summary(mongo_db, now, days):
+    """
+    Create dataframe summarizing the number of records in hourly buckets
+    starting with now.
 
-    mongo_db = connect_mongo()
-
-    if use_current_time:
-        now = dt.datetime.utcnow()
-    else:
-        now = dt.datetime.utcfromtimestamp(db_util.get_max_start_time())
+    @param mongo_db: Instance of database connection
+    @param now: datetime object representing the start of processing
+    @param days: how many days to process relative to `now`
+    @return: Pandas DataFrame
+    """
 
     text, begin, end = dotautil.TimeMethods.get_hour_blocks(
         now.timestamp(),
@@ -155,7 +146,7 @@ def main(days, use_current_time=True):
     skills = []
     match_ids = []
 
-    for ttime, btime, etime in zip(text, begin, end):
+    for _, btime, etime in zip(text, begin, end):
         for skill in [1, 2, 3]:
             query = {
                 '_id': {
@@ -174,6 +165,29 @@ def main(days, use_current_time=True):
         'match_ids': match_ids
     })
 
+    return summary
+
+
+def main(days, use_current_time=True):
+    """Populate the database with updated record counts from the `fetch`
+    routines. This effectively caches the record count for fast recall in
+    the web front-end.
+
+    @param days: Number of days backward to go in time
+    @param use_current_time: Base results on current time, or last record in
+    database. Last record generaly used for debugging only.
+    @return: None
+    """
+
+    mongo_db = connect_mongo()
+
+    if use_current_time:
+        now = dt.datetime.utcnow()
+    else:
+        now = dt.datetime.utcfromtimestamp(db_util.get_max_start_time())
+
+    summary = create_fetch_summary(mongo_db, now, days)
+
     log.info("Writing %d records to database", len(summary))
 
     # Write to database, overwriting old records
@@ -183,6 +197,8 @@ def main(days, use_current_time=True):
             "_id": "{0:10d}_{1}".format(
                 row['date_hour'],
                 row['skill']),
+            "start_time": int(row['date_hour']),
+            "skill": int(row["skill"]),
             "rec_count": int(row['match_ids']),
         }
 

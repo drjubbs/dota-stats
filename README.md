@@ -217,54 +217,24 @@ mysqldump --compact --compress --opt --databases dota -u dota -p | gzip > backup
 
 # TODO
 
-- Confirm MMR scraping code is now working in `analytics`
-  
-- Have `matchups.py` write to database, add unit testing.
-  
+- `win_rate_position.py`
+  - Finish implementation, add to "fetch loop"
+- `matchups.py` 
+  - Unit testing and write results to database
 - MongoDB Migration
   
   - When run in a crontab, getting timeout errors, why?
   - Do a time comparison of a complete run, mariadb vs. mongodb
   - Update environment / `env.sh` scripts in this document
   - Check to see if bot matches are still flooding the fetch (look for heroes with few records written)
-  - Back-end testing protocol
-    - Write routine to dump ~5 records to file using fetch.py (one-time use)
-    - Load records from file into MongoDB database
-    - Confirm get_max_start_time is working properly vs. file
-    - Confirm that get_hour_blocks brackets this max time on the first block of records
-    - Confirm that fetch.py loads the correct number of previous records on start-up
-    - Confirm that pick_rate_win_rate is processing the same number of records from fetch
-    - Confirm that pick_rate_win_rate creates the correct win rates for a handful of heroes
-    - Confirm that a database purge removes the correct number of records for 0 and 1 day time horizons (use override to prevent UTC based purging)
-  - Add additional fields (gpm/xpm), also look at items dictionary, it looks like hero numbers are stored as strings?
-  - Performance testing on all the steps relative to MariaDB
-  
 - Front-end
-  
-  - Format tweaks are needed to get proper display for mobile; responsive design for plotly graphs
-  
+  - Completely broken, split into 3 different pages and make charts work on mobile if possible.
 - Back-end
 
   - Why is DOTA2 API throughput so variable? I've also noticed some cases where the most recent match was days ago. I suspect not every call to fetch matches is going against the most current data, do some experimentation.
   - Check logs and /errors for malformed responses I continue be getting from the API -- Grep "ERROR" and "Traceback" in production logs.
   - Recheck filtering on fetch that it is accurate and what is desired. Add appropriate unit testing.
   - Look for anywhere the "timestamp()" datetime call is being used, it is likely the time is being localized incorrectly in these spots.
-  - Move "back-end" code to a proper project directory with PYTHONPATH set to avoid relative path and linting errors
-  - Update `fetch` scripts to reflect that `win_rate_pick_rate.py` now uses a skill level
   - Add new table for hero match-ups to easily index and find specific match-ups (e.g. Lycan vs. TA)
-  - Add overall timing information to each step (total time, rows processed, etc...) to aid with optimization
-
-- New Features
-
-  - Implement hero bitmasking and ability to search matches based on hero. Bitmasking might be slow, instead some sort of hero/match ID table might be needed with appropriate indexing on hero.
-  - Implement win rate by position database write and modify front-end to display.
-  - Protobuf: Include new fields for modeled roles (based on probability model), include GPM, match duration, and other useful information which might be needed for future analytics. Include player IDs for future work to model skill level based on match statistics.
-  
-- Data Analysis / Modeling
-
-  - `generate_prior.py`: Add command line arguments and modify to work using dates instead of record counts.
-  - `winrate_position.py`: Add command line arguments and ability to write to new database table. CLI arguments should include a date range. Add appropriate unit testing.
-  - `win_analysis` needs to be extended to include hero vs. enemy good/bad match-ups. This is currently waiting on bit masking for heroes as each hero will need to be done independently due to memory constraints.
-    - Is the 2nd order upper triangular style analysis even needed once we go to a per-hero model? If not, modify this document and edit `dotautil.py` to remove unused functions.
-
-  
+- Analysis / Modeling
+  - `generate_prior.py`: Add command line arguments and modify to work using dates instead of record counts
