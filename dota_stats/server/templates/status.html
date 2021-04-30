@@ -1,0 +1,70 @@
+{% extends "template.html" %}
+{% block title %}
+<title>Huskarmetrics: Status</title>
+{% endblock %}
+{% block main %}
+
+<a id="Health"></a>
+<div class="container-width">
+  <div class="jumbotron">
+    <div class="container">
+      <h2 class="display-4">Overall Service Health</h2>
+      <p>All times reported in US/Eastern time zone.</p>      
+    </div>
+  </div>
+</div>
+
+<div class="container-width">
+  <div class="row">s
+    <div class="col-md-2"></div>
+    <div class="col-md-8">  
+      <div class="chart" id="bargraph3">
+          <script>
+              var graphs = {{rec_plot3 | safe}};
+              Plotly.plot('bargraph3',graphs,{});
+          </script>
+      </div>
+    </div>
+    <div class="col-md-2"></div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-2"></div>
+    <div class="col-md-8">
+      <div class="chart" id="bargraph30">
+          <script>
+              var graphs = {{rec_plot30 | safe}};
+              Plotly.plot('bargraph30',graphs,{});
+          </script>
+      </div>
+    </div>
+    <div class="col-md-2"></div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-3">&nbsp;</div>
+    <div class="col-md-6">
+    <table class="table">
+      <thead>
+        <tr>
+          <th scope="col">Date/Hour</th>
+          <th scope="col">Normal</th>
+          <th scope="col">High</th>
+          <th scope="col">Very High</th>
+        </tr>
+      </thead>
+    {% for row in rec_count_table %}
+        <tr>
+          <td>{{ row[0] }}</td>
+          <td>{{ row[1] }}</td>
+          <td>{{ row[2] }}</td>
+          <td>{{ row[3] }}</td>
+        </tr>
+    {% endfor %}
+    </table>
+    </div>
+    <div class="col-md-3">&nbsp;</div>
+  </div>
+</div>
+
+{% endblock %}

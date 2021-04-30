@@ -1,189 +1,48 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-
-<!-- Bootstap 4 -->
-<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
-<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
-
-<!-- Plotly -->
-<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.6/d3.min.js"></script>
-
-<!-- DataTables -->
-<link rel="stylesheet" href="https://cdn.datatables.net/1.10.22/css/jquery.dataTables.min.css">
-<script src="https://cdn.datatables.net/1.10.22/js/jquery.dataTables.min.js"></script>
-
-<!-- Custom -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/huskarmetrics.css') }}">
-
-<title>Huskarmetrics: DOTA2 Data Analytics by a Low MMR Hack</title>
-</head>
-
-<body>
-
-  <nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
-    <a class="navbar-brand" href="#">HuskarMetrics</a>
-    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarsExampleDefault" aria-controls="navbarsExampleDefault" aria-expanded="false" aria-label="Toggle navigation">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="navbarsExampleDefault">
-      <ul class="navbar-nav mr-auto">
-        <li class="nav-item">
-          <a class="nav-link" href="#Overall">Overall</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="#Health">Health</a>
-        </li>
-      </ul>
-    </div>
-  </nav>
-
-<a id="Overall"></a>
+{% extends "template.html" %}
+{% block title %}
+<title>Huskarmetrics: Dota 2 Analytics</title>
+{% endblock %}
+{% block main %}
 <div class="container-width">
-  <div class="jumbotron">
-    <div class="container">
-      <h2 class="display-4">Overall Win Rate vs. Pick Rate</h2>
-      <p>Heroes with high win rate but low pick rate are often situational.</p>      
+    <div class="jumbotron">
+        <div class="container">
+            <h2 class="display-4">HuskarMetrics: Dota 2 Analytics</h2>
+<p>
+    Yet Another Dota 2 Analytics Site (YAD2AS), designed and built by a low
+    MMR hack
+</p>
+
+        </div>
     </div>
-  </div>
+    <div class="row">
+        <div class="col-3"></div>
+        <div class="col-6">
+            <img src="static/dota2.jpg" alt="Dota 2 Logo" class="float-left p-3" />
+            <h2>Welcome!</h2>
+            <p>
+                Welcome to the opence-source Dota 2 data analytics hobby
+                project, maintained by Dr. Jubbs and <a
+                    href="https://github.com/drjubbs/dota-stats">hosted on Github</a>.
+            </p>
+            <p>
+                This site uses the Dota 2 web API to harvest match
+                information to generate statistics and analytical insights on
+                the current Dota 2 meta.
+                Currently only a <a href="win-rate"> pareto-style analysis</a>
+                of win rates and <a href="status">overall service health
+                metrics</a> are being generated, with more content planned
+                over the coming months.
+            </p>
+            <p>
+                The source code is licensed under the permissive <a
+                    href="https://en.wikipedia.org/wiki/MIT_License">MIT
+                License</a>. The site uses the Python Flask framework for the
+                webserver, Plotly for charting, and MongoDB as the back-end
+                database.  sNext up enhancements include win rates by inferred
+                position, and individual hero match-ups.
+            </p>
+        </div>
+        <div class="col-3"></div>s
+    </div>
 </div>
-
-<div class="container-width">
-  <div class="row">
-    <div class="col-md-4 text-center">&nbsp;</div>
-    <div class="col-md-3 text-center">
-      <h2 class="text-center">Radiant vs. Dire</h2>
-      <table id="radiant_dire" class="table table-sm table-hover">
-        <thead>
-          <tr>
-            <th scope="col">Skill</th>
-            <th scope="col">Radiant Win %</th>
-          </tr>
-        </thead>
-        <tr>
-          <td>Normal</td>
-          <td>{{ "%7.2f" | format(radiant_vs_dire[0])}}</td>
-        </tr>
-        <tr>
-          <td>High</td>
-          <td>{{ "%7.2f" | format(radiant_vs_dire[1])}}</td>
-        </tr>
-        <tr>
-          <td>Very High</td>
-          <td>{{ "%7.2f" | format(radiant_vs_dire[2])}}</td>
-        </tr>
-      </table>      
-
-        <script>
-          $(document).ready( function () {
-            $('#radiant_dire').DataTable({
-              "paging" : false,
-              "info" : false,
-              "searching" : false
-            });
-          } );
-        </script>        
-    </div>
-  <div class="col-md-5 text-center">&nbsp;</div>
-  </div>
-
-  <!-- Begin graphs -->
-  <div class="row mt-5 mb-5">
-    <div class="col-sm">
-      <div class="chart" id="normal_skill">
-        <script>
-          var graphs ={{ win_rate_1 | safe}};
-          Plotly.plot('normal_skill',graphs,{});
-        </script>
-      </div>
-    </div>
-    <div class="col-sm">
-      <div class="chart" id="high_skill">
-        <script>
-          var graphs ={{ win_rate_2 | safe}};
-          Plotly.plot('high_skill',graphs,{});
-        </script>
-      </div>
-    </div>
-    <div class="col-sm">
-      <div class="chart" id="very_high_skill">
-        <script>
-          var graphs ={{ win_rate_3 | safe}};
-          Plotly.plot('very_high_skill',graphs,{});
-        </script>
-      </div>
-  </div>
-  </div>
-</div>
-<!-- End graphs -->
-
-<a id="Health"></a>
-<div class="container-width">
-  <div class="jumbotron">
-    <div class="container">
-      <h2 class="display-4">Overall Service Health</h2>
-      <p>All times reported in US/Eastern time zone.</p>      
-    </div>
-  </div>
-</div>
-
-<div class="container-width">
-  <div class="row">
-    <div class="col-md-2"></div>
-    <div class="col-md-8">  
-      <div class="chart" id="bargraph3">
-          <script>
-              var graphs = {{rec_plot3 | safe}};
-              Plotly.plot('bargraph3',graphs,{});
-          </script>
-      </div>
-    </div>
-    <div class="col-md-2"></div>
-  </div>
-
-  <div class="row">
-    <div class="col-md-2"></div>
-    <div class="col-md-8">
-      <div class="chart" id="bargraph30">
-          <script>
-              var graphs = {{rec_plot30 | safe}};
-              Plotly.plot('bargraph30',graphs,{});
-          </script>
-      </div>
-    </div>
-    <div class="col-md-2"></div>
-  </div>
-
-  <div class="row">
-    <div class="col-md-3">&nbsp;</div>
-    <div class="col-md-6">
-    <table class="table">
-      <thead>
-        <tr>
-          <th scope="col">Date/Hour</th>
-          <th scope="col">Normal</th>
-          <th scope="col">High</th>
-          <th scope="col">Very High</th>
-        </tr>
-      </thead>
-    {% for row in rec_count_table %}
-        <tr>
-          <td>{{ row[0] }}</td>
-          <td>{{ row[1] }}</td>
-          <td>{{ row[2] }}</td>
-          <td>{{ row[3] }}</td>
-        </tr>
-    {% endfor %}
-    </table>
-    </div>
-    <div class="col-md-3">&nbsp;</div>
-  </div>
-</div>
-
-</body>
-</html>
+{% endblock %}

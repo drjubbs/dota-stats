@@ -1,0 +1,85 @@
+{% extends "template.html" %}
+{% block title %}
+<title>Huskarmetrics: Win Rate & Pick Rate</title>
+{% endblock %}
+{% block main %}
+
+<a id="Overall"></a>
+<div class="container-width">
+  <div class="jumbotron">
+    <div class="container">
+      <h2 class="display-4">Overall Win Rate vs. Pick Rate</h2>
+      <p>Heroes with high win rate but low pick rate are often situational.</p>
+    </div>
+  </div>
+</div>
+
+<div class="container-width">
+  <div class="row">
+    <div class="col-md-4 text-center">&nbsp;</div>
+    <div class="col-md-3 text-center">
+      <h2 class="text-center">Radiant vs. Dire</h2>
+      <table id="radiant_dire" class="table table-sm table-hover">
+        <thead>
+          <tr>
+            <th scope="col">Skill</th>
+            <th scope="col">Radiant Win %</th>
+          </tr>
+        </thead>
+        <tr>
+          <td>Normal</td>
+          <td>{{ "%7.2f" | format(radiant_vs_dire[0])}}</td>
+        </tr>
+        <tr>
+          <td>High</td>
+          <td>{{ "%7.2f" | format(radiant_vs_dire[1])}}</td>
+        </tr>
+        <tr>
+          <td>Very High</td>
+          <td>{{ "%7.2f" | format(radiant_vs_dire[2])}}</td>
+        </tr>
+      </table>
+
+        <script>
+          $(document).ready( function () {
+            $('#radiant_dire').DataTable({
+              "paging" : false,
+              "info" : false,
+              "searching" : false
+            });
+          } );
+        </script>
+    </div>
+  <div class="col-md-5 text-center">&nbsp;</div>
+  </div>
+
+  <!-- Begin graphs -->
+  <div class="row mt-5 mb-5">
+    <div class="col-sm">
+      <div class="chart" id="normal_skill">
+        <script>
+          var graphs ={{ win_rate_1 | safe}};
+          Plotly.plot('normal_skill',graphs,{});
+        </script>
+      </div>
+    </div>
+    <div class="col-sm">
+      <div class="chart" id="high_skill">
+        <script>
+          var graphs ={{ win_rate_2 | safe}};
+          Plotly.plot('high_skill',graphs,{});
+        </script>
+      </div>
+    </div>
+    <div class="col-sm">
+      <div class="chart" id="very_high_skill">
+        <script>
+          var graphs ={{ win_rate_3 | safe}};
+          Plotly.plot('very_high_skill',graphs,{});
+        </script>
+      </div>
+  </div>
+  </div>
+</div>
+
+{% endblock %}
