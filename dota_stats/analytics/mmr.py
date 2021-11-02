@@ -1,3 +1,6 @@
+"""Command line tool which uses OpenDota and Dotabuff to calculate a player's
+MMR history based on match data.
+"""
 import time
 import argparse
 from dateutil import parser
@@ -6,9 +9,7 @@ import requests
 import pandas as pd
 import odutil
 
-USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36  (" \
-             "KHTML, like Gecko) Chrome/88.0.4324.190 Safari/537.36"
-
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.93 Safari/537.36"
 
 def fix_hero_name(hname):
     """Small utility function to normalize hero names between databases"""
@@ -197,7 +198,7 @@ def main(player_id, num_matches, current_mmr):
 
 if __name__ == "__main__":
     aparser = argparse.ArgumentParser(
-        description="Dota 2MMR back calculation for charting")
+        description="Dota 2 MMR back calculation for charting")
     aparser.add_argument("player_id", type=int,
                         help="Steam ID to fetch data for")
     aparser.add_argument("num_matches", type=int,

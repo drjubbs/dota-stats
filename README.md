@@ -66,7 +66,7 @@ Python 3.7.3 (default, Jul 25 2020, 13:03:44)
 
 
 
-## 
+## Mongo DB Setup
 
 Create the admin user:
 
@@ -81,13 +81,19 @@ db.createUser(
     roles: [ { role: "userAdminAnyDatabase", db: "admin" }, "readWriteAnyDatabase" ]
   }
 )
+db.grantRolesToUser('admin', [{ role: 'root', db: 'admin' }]);
+
 quit()
 ```
 
-Edit the configuration to use authentication and restart the service (uncomment the line `auth = True`. If desired, change the location of the storage for easy of backup **TODO: Check to see this actually contains enough for a proper backup**.
+Edit the configuration to use authentication and restart the service. If desired, change the location of the storage for easy of backup **TODO: Check to see this actually contains enough for a proper backup**.
 
 ```
 $ sudo vim /etc/mongodb.conf
+
+security:
+    authorization: enabled
+
 $ sudo systemctl restart mongodb
 ```
 
