@@ -173,7 +173,8 @@ def parse_players(match_id, players):
 
             if player['hero_id'] == 0:
                 raise ParseException("Null Hero ID")
-            raise ValueError("Missing hero: {}".format(match_id))
+            raise ValueError("Missing hero: {} {}".format(
+                match_id, player['hero_id']))
 
         # Check for intentional feeding
         if player['deaths'] > 30 and player['kills'] < 5:
